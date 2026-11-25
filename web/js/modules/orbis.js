@@ -2,7 +2,7 @@ import { h, fill, fmt, badge, box, state, loading, banner, openDrawer, closeDraw
 import { api } from "../services/api.js";
 import { Globe } from "../globe/globe.js";
 import { head, countryPanel } from "./common.js";
-import { store, subscribe, toggleLayer } from "../store.js";
+import { store, subscribe, toggleLayer, toggleCountryWatch } from "../store.js";
 
 const LAYERS = [
   { id: "population", label: "Countries (size ∝ population)" }, { id: "events", label: "Events" }, { id: "cities", label: "Major cities" }, { id: "quakes", label: "Earthquakes (USGS)" }, { id: "daynight", label: "Day / night" },
@@ -19,7 +19,7 @@ export async function render(el, arg) {
     store.selectedCountry = iso; if (!iso) { closeDrawer(); return; }
     const c = C.find((x) => x.iso2 === iso); if (!c) return;
     history.replaceState(null, "", "#/orbis/" + iso); globe.select(iso, focus);
-    openDrawer(c.name, countryPanel(c, { events: E.filter((e) => (e.countries || []).includes(iso)) }), () => { globe.select(null); history.replaceState(null, "", "#/orbis"); });
+    openDrawer(c.name, h("div", null, h("button", { style: { marginBottom: "8px" }, onclick: (e) => { toggleCountryWatch(iso); e.target.textContent = store.countryWatch.has(iso) ? "★ Following" : "☆ Follow"; } }, store.countryWatch.has(iso) ? "★ Following" : "☆ Follow"), countryPanel(c, { events: E.filter((e) => (e.countries || []).includes(iso)) })), () => { globe.select(null); history.replaceState(null, "", "#/orbis"); });
   };
   const globe = new Globe(host, { countries: C, geo: G && G.geo, onPick: (iso) => selectCountry(iso, false) });
   globe.setMarkers({ events: evMarks, cities: CI, quakes: Q.map((q) => ({ lat: q.lat, lon: q.lon, mag: q.magnitude })) });

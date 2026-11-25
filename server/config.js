@@ -8,6 +8,8 @@ export const config = {
   port: Number(process.env.PORT || 8090),
   offline: process.env.ORBIS_OFFLINE === "1",
   twelvedataKey: process.env.TWELVEDATA_KEY || "",
+  fredKey: process.env.FRED_API_KEY || "",
+  alphaVantageKey: process.env.ALPHAVANTAGE_KEY || "",
   anthropicKey: process.env.ANTHROPIC_API_KEY || "",
   analystModel: process.env.ANALYST_MODEL || "claude-sonnet-4-5",
   cacheDir: new URL("../data/cache/", import.meta.url).pathname,

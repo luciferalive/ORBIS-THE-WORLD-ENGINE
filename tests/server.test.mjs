@@ -113,3 +113,54 @@ test("World Bank parser keeps the newest value per country; geo simplifier round
   const f = simplify({ features: [{ properties: { ISO_A2: "-99", ISO_A2_EH: "FR", ISO_A3: "FRA", NAME: "France" }, geometry: { type: "Polygon", coordinates: [[[2.123456, 48.98765], [3, 49], [2, 50], [2.123456, 48.98765]]] } }] });
   assert.equal(f[0].iso2, "FR"); assert.deepEqual(f[0].polys[0][0][0], [2.12, 48.99]);
 });
+
+// ---- V2 providers (fixtures in documented formats)
+const { parseEvents: parseEonet } = await import("../server/providers/eonet.js");
+const { parseCurrent: parseOm } = await import("../server/providers/openmeteo.js");
+const { parseObservations: parseFred } = await import("../server/providers/fred.js");
+const { parseSeries: parseWbSeries } = await import("../server/providers/worldbank.js");
+const svc = await import("../server/services.js");
+test("EONET parser takes latest point geometry and skips events without one", () => {
+  const raw = { events: [{ id: "EONET_1", title: "Wildfire X", categories: [{ id: "wildfires", title: "Wildfires" }], geometry: [{ type: "Point", date: "2026-11-20T00:00:00Z", coordinates: [-120, 38] }, { type: "Point", date: "2026-11-22T00:00:00Z", coordinates: [-121, 39] }], closed: null, sources: [{ url: "https://x" }] }, { id: "EONET_2", title: "No geom", categories: [], geometry: [] }] };
+  const out = parseEonet(raw); assert.equal(out.length, 1); assert.equal(out[0].lat, 39); assert.equal(out[0].hazard, "wildfire"); assert.equal(out[0].meta.status, "LIVE");
+  assert.throws(() => parseEonet({}));
+});
+test("Open-Meteo parser maps array response to places and is labelled model-based", () => {
+  const raw = [{ latitude: 35.7, longitude: 139.7, current: { time: "2026-11-25T05:00", temperature_2m: 12.3, precipitation: 0, wind_speed_10m: 9, weather_code: 1 } }];
+  const out = parseOm(raw, [{ name: "Tokyo", iso2: "JP" }]); assert.equal(out[0].place, "Tokyo"); assert.equal(out[0].tempC, 12.3); assert.match(out[0].meta.note, /Model-based/);
+  assert.throws(() => parseOm({ error: true }, [{}]));
+});
+test("FRED parser drops missing '.' values and returns ascending points", () => {
+  const raw = { observations: [{ date: "2026-11-24", value: "4.1" }, { date: "2026-11-23", value: "." }, { date: "2026-11-22", value: "4.0" }] };
+  const out = parseFred(raw, "DGS10"); assert.deepEqual(out.points.map((p) => p.v), [4.0, 4.1]); assert.equal(out.latest.date, "2026-11-24"); assert.equal(out.meta.status, "PERIODIC");
+});
+test("World Bank country series parser sorts ascending and drops nulls", () => {
+  const raw = [{ page: 1 }, [{ date: "2023", value: 3 }, { date: "2021", value: null }, { date: "2022", value: 2 }]];
+  assert.deepEqual(parseWbSeries(raw), [{ year: 2022, value: 2 }, { year: 2023, value: 3 }]);
+});
+test("offline: hazards, weather unavailable; macro without key is explicit", async () => {
+  const hz = await svc.getHazards(); assert.equal(hz.available, false); const w = await svc.getWeather(); assert.equal(w.available, false);
+  const m = await svc.getMacro("DGS10"); assert.equal(m.available, false); assert.match(m.error, /FRED_API_KEY/); assert.equal(await svc.getMacro("nope"), null);
+});
+
+// ---- anomaly + alerts
+const { detect, detectAll } = await import("../server/intelligence/anomaly.js");
+const { evaluate: evalAlerts, validateRule } = await import("../server/intelligence/alerts.js");
+test("anomaly: spike flagged, calm series not, short series refused with reason", () => {
+  const calm = Array.from({ length: 60 }, (_, i) => [i, 100 + Math.sin(i) * 0.3]);
+  assert.equal(detect(calm).flagged, false);
+  const spike = [...calm, [60, 112]]; const r = detect(spike); assert.equal(r.flagged, true); assert.ok(r.movePct > 5); assert.match(r.reason, /robust standard deviations/);
+  assert.equal(detect(calm.slice(0, 10)).flagged, false); assert.match(detect(calm.slice(0, 10)).reason, /not enough/);
+  const flat = Array.from({ length: 60 }, (_, i) => [i, 50]); assert.equal(detect([...flat, [60, 50.01]]).flagged, false);
+});
+test("alerts: validation, thresholds and sample events never trigger", () => {
+  assert.ok(validateRule({ id: "a", type: "asset_change", asset: "btc", op: "x", value: 1 })); assert.equal(validateRule({ id: "a", type: "asset_change", asset: "btc", op: ">", value: 1 }), null);
+  const ctx = { assets: [{ id: "btc", name: "Bitcoin", price: 100, changePct: 6, meta: { status: "LIVE" } }], events: [{ id: "s1", kind: "sample", severity: 5, category: "war", title: "[SAMPLE]", summary: "", meta: { status: "DEMO" }, time: "2026-01-01T00:00:00Z", source: "x" }, { id: "r1", kind: "reported", severity: 4, category: "war", title: "Real", summary: "", meta: { status: "RECENT" }, time: "2026-01-01T00:00:00Z", source: "BBC" }], quakes: [] };
+  const out = evalAlerts([{ id: "r1", type: "asset_change", asset: "btc", op: ">", value: 5 }, { id: "r2", type: "asset_change", asset: "btc", op: "<", value: -5 }, { id: "r3", type: "event", minSeverity: 3 }], ctx);
+  assert.deepEqual(out.map((x) => x.ruleId).sort(), ["r1", "r3"]); assert.equal(out.find((x) => x.ruleId === "r3").title, "Real");
+});
+test("API: anomalies and alert evaluation endpoints", async () => {
+  const a = await route("GET", new URL("http://x/api/anomalies")); assert.ok(Array.isArray(a.anomalies));
+  const r = await route("POST", new URL("http://x/api/alerts/evaluate"), { rules: [{ id: "t", type: "asset_price", asset: "spx", op: ">", value: 1 }] }); assert.equal(r.triggered.length, 1);
+  await assert.rejects(() => route("POST", new URL("http://x/api/alerts/evaluate"), { rules: [{ id: "t", type: "nope" }] }));
+});

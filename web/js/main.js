@@ -4,14 +4,17 @@ import { store, setCollapsed } from "./store.js";
 import * as overview from "./modules/overview.js"; import * as orbis from "./modules/orbis.js"; import * as humanity from "./modules/humanity.js"; import * as economy from "./modules/economy.js";
 import * as markets from "./modules/markets.js"; import * as live from "./modules/live.js"; import * as planet from "./modules/planet.js"; import * as resources from "./modules/resources.js";
 import * as civilization from "./modules/civilization.js"; import * as risefall from "./modules/risefall.js"; import * as risk from "./modules/risk.js"; import * as connections from "./modules/connections.js";
+import * as geopolitics from "./modules/geopolitics.js"; import * as reports from "./modules/reports.js"; import * as watchlists from "./modules/watchlists.js"; import * as settings from "./modules/settings.js";
+import { startAlerts } from "./services/alerts.js"; import { store as st, subscribe, markRead, clearNotes } from "./store.js";
 import * as history from "./modules/history.js"; import * as forecast from "./modules/forecast.js"; import * as analyst from "./modules/analyst.js";
 
 export const MODULES = [
-  { id: "overview", n: "01", label: "Overview", m: overview }, { id: "orbis", n: "02", label: "Orbis", m: orbis }, { id: "humanity", n: "03", label: "Humanity", m: humanity },
+  { id: "overview", n: "01", label: "Overview", m: overview }, { id: "orbis", n: "02", label: "Globe", m: orbis }, { id: "humanity", n: "03", label: "Humanity", m: humanity },
   { id: "economy", n: "04", label: "Economy", m: economy }, { id: "markets", n: "05", label: "Markets", m: markets }, { id: "live", n: "06", label: "World Live", m: live },
-  { id: "planet", n: "07", label: "Planet", m: planet }, { id: "resources", n: "08", label: "Resources", m: resources }, { id: "civilization", n: "09", label: "Civilization", m: civilization },
-  { id: "risefall", n: "10", label: "Rise & Fall", m: risefall }, { id: "risk", n: "11", label: "World Risk", m: risk, tag: "METHOD" }, { id: "connections", n: "12", label: "Connections", m: connections },
-  { id: "history", n: "13", label: "History", m: history }, { id: "forecast", n: "14", label: "Forecast", m: forecast }, { id: "analyst", n: "15", label: "Analyst", m: analyst },
+  { id: "geopolitics", n: "07", label: "Geopolitics", m: geopolitics }, { id: "planet", n: "08", label: "Planet", m: planet }, { id: "resources", n: "09", label: "Resources", m: resources },
+  { id: "civilization", n: "10", label: "Civilization", m: civilization }, { id: "risefall", n: "11", label: "Rise & Fall", m: risefall }, { id: "risk", n: "12", label: "World Risk", m: risk, tag: "METHOD" },
+  { id: "connections", n: "13", label: "Connections", m: connections }, { id: "history", n: "14", label: "History", m: history }, { id: "forecast", n: "15", label: "Forecast", m: forecast },
+  { id: "analyst", n: "16", label: "AI Analyst", m: analyst }, { id: "reports", n: "17", label: "Reports", m: reports }, { id: "watchlists", n: "18", label: "Watchlists", m: watchlists }, { id: "settings", n: "19", label: "Settings", m: settings },
 ];
 let cleanup = null, token = 0;
 const parse = () => { const [, mod = "overview", ...rest] = location.hash.replace(/^#\/?/, "/").split("/"); return { mod: mod || "overview", arg: decodeURIComponent(rest.join("/") || "") }; };
@@ -27,7 +30,8 @@ function renderTop() {
   clockEl = h("span", { class: "mono t2 clock" }); const tick = () => { clockEl.textContent = new Date().toISOString().slice(0, 19).replace("T", " ") + " UTC"; }; tick(); setInterval(tick, 1000);
   fill($("#top"), h("button", { class: "menu", "aria-label": "Toggle modules", onclick: () => $("#side").classList.toggle("open") }, "☰"),
     h("button", { class: "search", onclick: openPalette, "aria-label": "Search ORBIS" }, "⌕ ", h("span", null, "Search countries, assets, events…"), h("kbd", null, "Ctrl K")),
-    h("span", { class: "sp" }), h("span", { id: "modeBadge" }), clockEl);
+    h("span", { class: "sp" }), h("span", { id: "modeBadge" }), h("button", { id: "bell", onclick: openNotes, "aria-label": "Notifications" }, "🔔 ", h("span", { id: "bellN" }, "0")), h("a", { href: "#/settings", class: "pill PERIODIC", title: "Local profile (no accounts yet)" }, "LOCAL"), clockEl);
+  const upd = () => { const n = st.notes.filter((x) => !x.read).length; const b = $("#bellN"); if (b) { b.textContent = n; $("#bell").classList.toggle("on", n > 0); } }; subscribe(upd); upd();
 }
 async function renderStatus() {
   const el = $("#status"), draw = async () => {
@@ -77,3 +81,10 @@ async function route() {
 addEventListener("hashchange", route);
 addEventListener("unhandledrejection", (e) => { toast(String((e.reason && e.reason.message) || e.reason), "err"); });
 renderTop(); renderStatus(); route();
+
+function openNotes() {
+  markRead();
+  openDrawer("Notifications", h("div", null, h("div", { class: "row", style: { marginBottom: "8px" } }, h("a", { href: "#/settings" }, "Manage alert rules"), h("button", { onclick: () => { clearNotes(); closeDrawer(); } }, "Clear history")),
+    st.notes.length ? h("div", { class: "feed" }, st.notes.map((n) => h("div", { class: "item" }, h("div", { class: "meta" }, h("span", { class: "pill " + (n.dataStatus || "DEMO") }, n.dataStatus || "?"), h("span", null, fmt.ago(n.firedAt || n.at))), h("div", null, n.title), h("div", { class: "small t2" }, n.detail)))) : state("No notifications", "Create alert rules in Settings. They fire here when conditions are met.")));
+}
+startAlerts();

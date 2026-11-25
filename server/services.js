@@ -12,6 +12,11 @@ import * as usgs from "./providers/usgs.js";
 import * as news from "./providers/news.js";
 import * as wb from "./providers/worldbank.js";
 import * as geo from "./providers/geo.js";
+import * as eonet from "./providers/eonet.js";
+import * as om from "./providers/openmeteo.js";
+import * as fred from "./providers/fred.js";
+import { detectAll } from "./intelligence/anomaly.js";
+import { evaluate as evalAlerts, validateRule } from "./intelligence/alerts.js";
 import { buildSignals, projectCone } from "./intelligence/signals.js";
 import { populationScenarios, METHOD } from "./intelligence/forecast.js";
 import { buildGraph, neighbourhood } from "./data/graph.js";
@@ -64,7 +69,7 @@ export async function getForecastAsset(id, steps = 30) {
 
 // ---------- events
 export async function getEvents() {
-  const jobs = [["gdelt", safe("ev:gdelt", 5 * 60e3, news.fetchGdelt)], ["rss", safe("ev:rss", 5 * 60e3, news.fetchRss)], ["usgs", safe("ev:usgs", 60e3, () => usgs.fetchQuakes("2.5_day"))]];
+  const jobs = [["gdelt", safe("ev:gdelt", 5 * 60e3, news.fetchGdelt)], ["rss", safe("ev:rss", 5 * 60e3, news.fetchRss)], ["usgs", safe("ev:usgs", 60e3, () => usgs.fetchQuakes("2.5_day"))], ["eonet", safe("ev:eonet", 10 * 60e3, eonet.fetchOpen)]];
   let live = []; const feeds = {};
   for (const [n, p] of jobs) { const r = await p; feeds[n] = r.ok ? { ok: true, stale: !!r.stale, count: r.value.length } : { ok: false, error: r.error }; if (r.ok) live = live.concat(r.value); }
   const seen = new Set(); live = live.filter((e) => (seen.has(e.title) ? false : seen.add(e.title)));
@@ -121,3 +126,41 @@ export function getStatus() {
   return { time: new Date().toISOString(), offline: config.offline, sources: registry.list(), configured: { twelvedata: td.configured(), ai: !!config.anthropicKey } };
 }
 export const getCities = () => ({ cities: CITIES, meta: meta({ provider: "Bundled reference", source: "Approximate metro populations", status: "DEMO", frequency: "static", dataType: "cities", note: "Approximate, hand-entered." }) });
+
+// ---------- hazards, weather, macro series (V2 live environment/economy)
+export async function getHazards() {
+  const r = await safe("ev:eonet", 10 * 60e3, eonet.fetchOpen);
+  return r.ok ? { hazards: r.value, available: true, stale: !!r.stale, meta: r.value[0]?.meta || null } : { hazards: [], available: false, error: r.error };
+}
+export async function getWeather() {
+  const places = CITIES.slice(0, 20).map((c) => ({ name: c.name, iso2: c.iso2, lat: c.lat, lon: c.lon }));
+  const r = await safe("om:cities", 15 * 60e3, () => om.fetchCurrent(places));
+  return r.ok ? { places: r.value, available: true, stale: !!r.stale, meta: r.value[0]?.meta || null } : { places: [], available: false, error: r.error };
+}
+export async function getMacro(id) {
+  if (!fred.SERIES[id]) return null;
+  if (!fred.configured()) return { available: false, id, label: fred.SERIES[id].label, error: "FRED_API_KEY is not configured on the server" };
+  const r = await safe("fred:" + id, 3600e3, () => fred.fetchSeries(id));
+  return r.ok ? { available: true, stale: !!r.stale, ...r.value } : { available: false, id, label: fred.SERIES[id].label, error: r.error };
+}
+export const getMacroCatalog = () => ({ configured: fred.configured(), series: Object.entries(fred.SERIES).map(([id, s]) => ({ id, ...s })) });
+export async function getCountrySeries(iso2, key) {
+  if (!wb.INDICATORS[key]) return null;
+  const c = COUNTRIES.find((x) => x.iso2 === String(iso2).toUpperCase()); if (!c) return null;
+  const r = await safe(`wb:s:${c.iso2}:${key}`, 24 * 3600e3, () => wb.fetchCountrySeries(c.iso2, key));
+  const m = meta({ provider: "World Bank", source: "World Bank Open Data, indicator " + wb.INDICATORS[key], status: r.ok ? "PERIODIC" : "UNAVAILABLE", frequency: "annual (about 1 year lag)", dataType: key, attribution: "World Bank, CC BY 4.0", license: "CC BY 4.0", note: r.ok ? "" : r.error });
+  return { country: c.iso2, indicator: key, available: r.ok, points: r.ok ? r.value : [], error: r.ok ? undefined : r.error, meta: m };
+}
+export const getIndicatorCatalog = () => ({ indicators: Object.keys(wb.INDICATORS) });
+
+// ---------- anomalies and alerts
+export async function getAnomalies() {
+  const { assets } = await getAssets(); const flags = detectAll(assets);
+  return { anomalies: flags, checked: assets.length, meta: meta({ provider: "ORBIS anomaly detector", source: "Modified z-score (median/MAD) of latest log-return per asset", status: assets.every((a) => a.meta.status === "DEMO") ? "DEMO" : "ESTIMATE", frequency: "per request", dataType: "anomalies", note: "Controls: min 30 observations, z>=3.5, move>=0.5%, max 10 flags. Flags are statistical, not causal." }) };
+}
+export async function evaluateAlertRules(rules) {
+  if (!Array.isArray(rules)) return { error: "rules must be an array" };
+  const bad = rules.map(validateRule).find(Boolean); if (bad) return { error: bad };
+  const [a, e, q] = await Promise.all([getAssets(), getEvents(), getQuakes()]);
+  return { triggered: evalAlerts(rules, { assets: a.assets, events: e.events, quakes: q.quakes }), evaluatedAt: new Date().toISOString() };
+}

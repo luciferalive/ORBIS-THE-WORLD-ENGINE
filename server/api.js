@@ -22,6 +22,13 @@ export async function route(method, url, body) {
     if (p === "/api/events") { const r = await svc.getEvents(); const list = svc.filterEvents(r.events, { category: q.get("category"), country: q.get("country"), severity: q.get("severity"), q: q.get("q"), sort: q.get("sort") || "latest" }); return { events: list, total: r.events.length, feeds: r.feeds, sample: r.sample }; }
     if (seg[1] === "events" && seg.length === 3) { const r = await svc.getEvents(); const e = r.events.find((x) => x.id === decodeURIComponent(seg[2])); if (!e) throw new HttpError(404, "event not found"); const related = r.events.filter((x) => x.id !== e.id && (x.category === e.category || x.countries.some((c) => e.countries.includes(c)))).slice(0, 6); return { event: e, related, sample: r.sample }; }
     if (p === "/api/quakes") return svc.getQuakes();
+    if (p === "/api/anomalies") return svc.getAnomalies();
+    if (p === "/api/hazards") return svc.getHazards();
+    if (p === "/api/weather") return svc.getWeather();
+    if (p === "/api/macro") return svc.getMacroCatalog();
+    if (p.startsWith("/api/macro/")) return (await svc.getMacro(decodeURIComponent(p.slice(11)))) || (() => { throw new HttpError(404, "unknown series"); })();
+    if (p === "/api/indicators") return svc.getIndicatorCatalog();
+    if (p.startsWith("/api/indicators/")) { const [, , , iso, key] = p.split("/"); return (await svc.getCountrySeries(iso, key)) || (() => { throw new HttpError(404, "unknown country or indicator"); })(); }
     if (p === "/api/countries") return svc.getCountries();
     if (p === "/api/cities") return svc.getCities();
     if (p === "/api/humanity") return svc.getHumanity();
@@ -35,6 +42,7 @@ export async function route(method, url, body) {
     if (p === "/api/analyst/status") return { enabled: ai.enabled(), model: ai.enabled() ? config.analystModel : null };
     if (p === "/api/analyst/context") return ai.buildContext();
   }
+  if (method === "POST" && p === "/api/alerts/evaluate") { const r = await svc.evaluateAlertRules(body && body.rules); if (r.error) throw new HttpError(400, r.error); return r; }
   if (method === "POST" && p === "/api/analyst/ask") { if (!body || typeof body.question !== "string" || !body.question.trim()) throw new HttpError(400, "question required"); const r = await ai.ask(body.question); if (!r.enabled) return { enabled: false, message: "AI Analyst is disabled: no ANTHROPIC_API_KEY configured on the server. No answer was generated." }; return r; }
   throw new HttpError(404, "not found");
 }
