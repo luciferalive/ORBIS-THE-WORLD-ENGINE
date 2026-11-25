@@ -1,0 +1,11 @@
+import { h, fill, fmt, badge, box, state, loading, banner, chg } from "../components/ui.js";
+import { api } from "../services/api.js";
+import { head, sparkCell } from "./common.js";
+const COLS = [["rising", "Rising", "Strong gain over the window and positive momentum"], ["falling", "Falling", "Strong decline over the window"], ["emerging", "Emerging", "Weak first part of the window but strong recent gain (trend turning up)"], ["losing", "Losing momentum", "Strong first part but recent weakness (trend fading)"], ["unusual", "Unusual movement", "Latest move is a statistical outlier (|z| above threshold)"]];
+export async function render(el) {
+  fill(el, head("Rise & Fall", "Signals computed from price series"), loading());
+  const [S, M] = await Promise.all([api.signals(), api.markets()]); const byId = Object.fromEntries(M.assets.map((a) => [a.id, a]));
+  fill(el, head("Rise & Fall", "Rising, falling, emerging and fading assets", S.meta), S.meta.status === "DEMO" ? banner("Signals are calculated from DEMO price series, so they describe sample data, not the market.") : null,
+    h("div", { class: "grid g3" }, COLS.map(([k, label, why]) => box(label, h("div", null, h("p", { class: "small muted" }, why), S.signals[k].length ? S.signals[k].map((s) => h("div", { style: { padding: "6px 0", borderBottom: "1px solid var(--line)" } }, h("div", { class: "row", style: { flexWrap: "nowrap" } }, h("a", { href: "#/markets/" + s.id, style: { flex: 1 } }, s.entity), byId[s.id] ? sparkCell(byId[s.id]) : null, chg(s.movement)), h("div", { class: "small t2" }, s.explanation), h("div", { class: "row small muted" }, h("span", null, s.category), badge({ status: s.dataStatus, provider: s.source, source: s.source, frequency: s.window, dataType: "signal", updatedAt: s.updatedAt }, s.dataStatus)))) : h("div", { class: "small muted" }, "None right now.")))) ),
+    box("Method", h("div", { class: "small t2" }, h("p", null, "Each series is split into thirds. Total move = first→last change; recent = last third; momentum = recent minus earlier pace; z-score compares the latest step with the series' own volatility. Thresholds are fixed and visible in server/intelligence/signals.js."), h("p", null, "These are descriptive statistics about price series, not recommendations or forecasts."))));
+}
