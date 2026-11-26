@@ -1,4 +1,8 @@
 # Changelog
+## 0.4.0
+- 17 new modules (Atmosphere, Oceans, Marine life, Polar, Astronomy, Technology, Financial Power, Megaprojects, Discovery, Security, Simulations, Universe Clock, Agriculture, Crime, Railways, Roads, Logistics, Maritime), grouped sidebar, 42 modules total.
+- Adapters: NOAA GML, GISTEMP, NSIDC, Open-Meteo marine and air quality, ISS, APOD, Exoplanet Archive, GOES X-ray, GBIF, Hacker News, SEC EDGAR; ~40 more World Bank indicators; UN News and NASA RSS.
+- Simulation engine (oil shock, supply disruption, FX depreciation, population).
 ## 0.3.0
 - Provider catalogue (~50), API Management Center (registry, health, test connection, custom registration with SSRF guard).
 - Adapters: NOAA SWPC, Launch Library 2, NASA NeoWs, CelesTrak, OpenAlex, arXiv, CISA KEV, OpenSky.

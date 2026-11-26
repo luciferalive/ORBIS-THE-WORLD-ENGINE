@@ -7,15 +7,23 @@ import * as civilization from "./modules/civilization.js"; import * as risefall 
 import * as geopolitics from "./modules/geopolitics.js"; import * as reports from "./modules/reports.js"; import * as watchlists from "./modules/watchlists.js"; import * as settings from "./modules/settings.js";
 import { startAlerts } from "./services/alerts.js"; import { store as st, subscribe, markRead, clearNotes } from "./store.js";
 import * as space from "./modules/space.js"; import * as science from "./modules/science.js"; import * as cyber from "./modules/cyber.js"; import * as aviation from "./modules/aviation.js"; import * as sources from "./modules/sources.js";
+import * as atmosphere from "./modules/atmosphere.js"; import * as polar from "./modules/polar.js"; import * as oceans from "./modules/oceans.js"; import * as marine from "./modules/marine.js"; import * as astronomy from "./modules/astronomy.js";
+import * as technology from "./modules/technology.js"; import * as finance from "./modules/finance.js"; import * as megaprojects from "./modules/megaprojects.js"; import * as discovery from "./modules/discovery.js"; import * as security from "./modules/security.js"; import * as simulations from "./modules/simulations.js"; import * as universe from "./modules/universe.js";
+import { agriculture, crime, railways, roads, logistics, maritime } from "./modules/simple.js";
 import * as history from "./modules/history.js"; import * as forecast from "./modules/forecast.js"; import * as analyst from "./modules/analyst.js";
 
+const G = (group, list) => list.map((x) => ({ ...x, group }));
 export const MODULES = [
-  { id: "overview", n: "01", label: "Overview", m: overview }, { id: "orbis", n: "02", label: "Globe", m: orbis }, { id: "humanity", n: "03", label: "Humanity", m: humanity },
-  { id: "economy", n: "04", label: "Economy", m: economy }, { id: "markets", n: "05", label: "Markets", m: markets }, { id: "live", n: "06", label: "World Live", m: live },
-  { id: "geopolitics", n: "07", label: "Geopolitics", m: geopolitics }, { id: "planet", n: "08", label: "Planet", m: planet }, { id: "resources", n: "09", label: "Resources", m: resources },
-  { id: "civilization", n: "10", label: "Civilization", m: civilization }, { id: "risefall", n: "11", label: "Rise & Fall", m: risefall }, { id: "risk", n: "12", label: "World Risk", m: risk, tag: "METHOD" },
-  { id: "connections", n: "13", label: "Connections", m: connections }, { id: "history", n: "14", label: "History", m: history }, { id: "forecast", n: "15", label: "Forecast", m: forecast },
-  { id: "analyst", n: "16", label: "AI Analyst", m: analyst }, { id: "reports", n: "17", label: "Reports", m: reports }, { id: "watchlists", n: "18", label: "Watchlists", m: watchlists }, { id: "space", n: "20", label: "Space", m: space }, { id: "science", n: "21", label: "Science", m: science }, { id: "cyber", n: "22", label: "Cybersecurity", m: cyber }, { id: "aviation", n: "23", label: "Aviation", m: aviation }, { id: "sources", n: "24", label: "API Center", m: sources }, { id: "settings", n: "25", label: "Settings", m: settings },
+  ...G("Command", [{ id: "overview", label: "Overview", m: overview }, { id: "orbis", label: "Globe", m: orbis }]),
+  ...G("People and society", [{ id: "humanity", label: "Humanity", m: humanity }, { id: "civilization", label: "Civilization", m: civilization }, { id: "crime", label: "Crime", m: crime }]),
+  ...G("Economy and markets", [{ id: "economy", label: "Economy", m: economy }, { id: "markets", label: "Markets", m: markets }, { id: "finance", label: "Financial Power", m: finance }, { id: "resources", label: "Resources", m: resources }, { id: "agriculture", label: "Agriculture", m: agriculture }]),
+  ...G("World events", [{ id: "live", label: "World Live", m: live }, { id: "geopolitics", label: "Geopolitics", m: geopolitics }, { id: "security", label: "Security", m: security }, { id: "risk", label: "World Risk", m: risk, tag: "METHOD" }]),
+  ...G("Planet", [{ id: "planet", label: "Planet", m: planet }, { id: "atmosphere", label: "Atmosphere", m: atmosphere }, { id: "oceans", label: "Oceans", m: oceans }, { id: "marine", label: "Marine life", m: marine }, { id: "polar", label: "Polar", m: polar }]),
+  ...G("Space", [{ id: "space", label: "Space", m: space }, { id: "astronomy", label: "Astronomy", m: astronomy }]),
+  ...G("Transport", [{ id: "aviation", label: "Aviation", m: aviation }, { id: "maritime", label: "Maritime", m: maritime }, { id: "railways", label: "Railways", m: railways }, { id: "roads", label: "Roads", m: roads }, { id: "logistics", label: "Logistics", m: logistics }]),
+  ...G("Science and technology", [{ id: "science", label: "Science", m: science }, { id: "technology", label: "Technology", m: technology }, { id: "discovery", label: "Discovery", m: discovery }, { id: "cyber", label: "Cybersecurity", m: cyber }, { id: "megaprojects", label: "Megaprojects", m: megaprojects }]),
+  ...G("Intelligence", [{ id: "risefall", label: "Rise & Fall", m: risefall }, { id: "connections", label: "Connections", m: connections }, { id: "history", label: "History", m: history }, { id: "forecast", label: "Forecast", m: forecast }, { id: "simulations", label: "Simulations", m: simulations }, { id: "universe", label: "Universe Clock", m: universe }, { id: "analyst", label: "AI Analyst", m: analyst }, { id: "reports", label: "Reports", m: reports }]),
+  ...G("Workspace", [{ id: "watchlists", label: "Watchlists", m: watchlists }, { id: "sources", label: "API Center", m: sources }, { id: "settings", label: "Settings", m: settings }]),
 ];
 let cleanup = null, token = 0;
 const parse = () => { const [, mod = "overview", ...rest] = location.hash.replace(/^#\/?/, "/").split("/"); return { mod: mod || "overview", arg: decodeURIComponent(rest.join("/") || "") }; };
@@ -23,7 +31,7 @@ const parse = () => { const [, mod = "overview", ...rest] = location.hash.replac
 function renderSide() {
   const { mod } = parse(), side = $("#side"); side.classList.toggle("collapsed", store.sidebarCollapsed);
   fill(side, h("div", { class: "brand" }, h("i"), h("span", null, "ORBIS")),
-    h("nav", { "aria-label": "Modules" }, MODULES.map((x, i) => h("a", { class: "nav" + (x.id === mod ? " on" : ""), href: "#/" + x.id, title: x.label, "aria-current": x.id === mod ? "page" : null }, h("span", { class: "n" }, String(i + 1).padStart(2, "0")), h("span", { class: "lbl" }, x.label), x.tag ? h("span", { class: "st" }, x.tag) : null))),
+    h("nav", { "aria-label": "Modules" }, MODULES.flatMap((x, i) => [i === 0 || MODULES[i - 1].group !== x.group ? h("div", { class: "grp" }, x.group) : null, h("a", { class: "nav" + (x.id === mod ? " on" : ""), href: "#/" + x.id, title: x.label, "aria-current": x.id === mod ? "page" : null }, h("span", { class: "n" }, String(i + 1).padStart(2, "0")), h("span", { class: "lbl" }, x.label), x.tag ? h("span", { class: "st" }, x.tag) : null)])),
     h("div", { class: "foot" }, h("button", { onclick: () => { setCollapsed(!store.sidebarCollapsed); renderSide(); }, "aria-label": "Collapse sidebar", style: { width: "100%" } }, store.sidebarCollapsed ? "»" : "« Collapse")));
 }
 let clockEl;

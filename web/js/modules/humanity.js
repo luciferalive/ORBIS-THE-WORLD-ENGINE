@@ -1,3 +1,4 @@
+import { indicatorBox } from "./indicators.js";
 import { sourcesBox } from "../components/sources.js";
 import { h, fill, fmt, badge, box, state, loading, svg } from "../components/ui.js";
 import { api } from "../services/api.js";
@@ -29,4 +30,4 @@ async function _render(el) {
   tick(); const t = setInterval(tick, 100); stop.push(() => clearInterval(t)); return () => stop.forEach((f) => f());
 }
 
-export async function render(el, arg) { const c = await _render(el, arg); el.append(h("div", { style: { height: "10px" } }), sourcesBox(['worldbank'])); return c; }
+export async function render(el, arg) { const c = await _render(el, arg); el.append(h("div", { style: { height: "10px" } }), indicatorBox(["fertility", "lifeExpectancy", "infantMortality", "age65Pct", "urbanPct", "povertyPct", "literacyPct", "educationSpendPct"], { title: "Demographics, health and education by country" }), h("div", { style: { height: "10px" } }), sourcesBox(['worldbank'])); return c; }

@@ -12,10 +12,10 @@ cp .env.example .env        # optional: add API keys
 node server/index.js        # open http://localhost:8090
 ```
 
-Useful commands: `npm test` (36 tests), `ORBIS_OFFLINE=1 node server/index.js` (demo mode, no network), `node scripts/gen-sources-doc.mjs` (regenerate docs/DATA_SOURCES.md).
+Useful commands: `npm test` (43 tests), `ORBIS_OFFLINE=1 node server/index.js` (demo mode, no network), `node scripts/gen-sources-doc.mjs` (regenerate docs/DATA_SOURCES.md).
 
 ## What is in it
-25 modules: Overview, Globe, Humanity, Economy, Markets, World Live, Geopolitics, Planet, Resources, Civilization, Rise & Fall, World Risk, Connections, History, Forecast, AI Analyst, Reports, Watchlists, Space, Science, Cybersecurity, Aviation, API Center, Settings. Press `Ctrl+K` or `/` to search anything.
+42 modules in 10 groups: Overview, Globe; Humanity, Civilization, Crime; Economy, Markets, Financial Power, Resources, Agriculture; World Live, Geopolitics, Security, World Risk; Planet, Atmosphere, Oceans, Marine life, Polar; Space, Astronomy; Aviation, Maritime, Railways, Roads, Logistics; Science, Technology, Discovery, Cybersecurity, Megaprojects; Rise & Fall, Connections, History, Forecast, Simulations, Universe Clock, AI Analyst, Reports; Watchlists, API Center, Settings. Press `Ctrl+K` or `/` to search anything.
 
 Features: interactive globe (drag, zoom, country selection, day/night), live-or-labelled markets, event feed, anomaly detection, alert rules with in-app notifications, CSV and print-to-PDF reports, a source registry with ~50 providers, and per-module "Data sources" panels.
 

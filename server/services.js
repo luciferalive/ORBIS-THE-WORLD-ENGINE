@@ -23,6 +23,10 @@ import * as openalex from "./providers/openalex.js";
 import * as arxiv from "./providers/arxiv.js";
 import * as cisa from "./providers/cisa.js";
 import * as opensky from "./providers/opensky.js";
+import * as climate from "./providers/climate.js";
+import * as extras from "./providers/extras.js";
+import { simulate, MODELS } from "./intelligence/simulate.js";
+import { MEGAPROJECTS, CHOKEPOINTS, METEOR_SHOWERS, AS_OF } from "./data/megaprojects.js";
 import { detectAll } from "./intelligence/anomaly.js";
 import { evaluate as evalAlerts, validateRule } from "./intelligence/alerts.js";
 import { buildSignals, projectCone } from "./intelligence/signals.js";
@@ -183,3 +187,35 @@ export const getPublications = (q = "") => live("oa:" + q, 3600e3, () => openale
 export const getPreprints = (c = "astro-ph") => live("ax:" + c, 3600e3, () => arxiv.fetchRecent(c), "papers");
 export const getVulnerabilities = async () => { const r = await live("cisa:kev", 3600e3, cisa.fetchKev, "vulnerabilities"); r.total = r.vulnerabilities.length; r.vulnerabilities = r.vulnerabilities.slice(0, 100); return r; };
 export const getAircraft = () => live("os:states", 30e3, opensky.fetchStates, "aircraft");
+
+// ---------- indicator tables (World Bank), climate, oceans, air, astronomy, biodiversity, tech, filings, simulations
+export async function getIndicatorTable(keys) {
+  keys = [...new Set(keys)].filter((k) => wb.INDICATORS[k]).slice(0, 8); if (!keys.length) return null;
+  const res = await Promise.all(keys.map((k) => safe("wb:" + k, 24 * 3600e3, () => wb.fetchIndicator(k))));
+  const any = res.some((r) => r.ok);
+  const rows = COUNTRIES.map((c) => ({ iso2: c.iso2, name: c.name, flag: FLAG(c.iso2), region: c.region, values: Object.fromEntries(keys.map((k, i) => [k, res[i].ok && res[i].value.get(c.iso3) ? res[i].value.get(c.iso3) : null])) }));
+  return { keys, available: any, rows: any ? rows : [], errors: res.map((r, i) => (r.ok ? null : { key: keys[i], error: r.error })).filter(Boolean),
+    meta: meta({ provider: "World Bank", source: "World Bank Open Data (" + keys.map((k) => wb.INDICATORS[k]).join(", ") + ")", status: any ? "PERIODIC" : "UNAVAILABLE", frequency: "annual (most recent value per country; years differ)", dataType: "indicators", attribution: "World Bank, CC BY 4.0", license: "CC BY 4.0", note: any ? "Each cell shows its own reference year; countries differ in latest available year." : "World Bank unreachable: no values shown." }) };
+}
+export async function getClimate() {
+  const [co2, ch4, gis, n, sx] = await Promise.all([safe("cl:co2", 24 * 3600e3, climate.fetchCo2), safe("cl:ch4", 24 * 3600e3, climate.fetchCh4), safe("cl:gis", 24 * 3600e3, climate.fetchGistemp), safe("cl:ice:n", 6 * 3600e3, () => climate.fetchSeaIce("north")), safe("cl:ice:s", 6 * 3600e3, () => climate.fetchSeaIce("south"))]);
+  const pick = (r) => (r.ok ? { available: true, ...r.value } : { available: false, error: r.error });
+  return { co2: pick(co2), ch4: pick(ch4), temperature: pick(gis), seaIceNorth: pick(n), seaIceSouth: pick(sx) };
+}
+const OCEAN_POINTS = [["North Atlantic", 45, -30], ["South Atlantic", -25, -15], ["North Pacific", 35, -150], ["Equatorial Pacific", 0, -140], ["South Pacific", -35, -120], ["Indian Ocean", -15, 80], ["Southern Ocean", -55, 60], ["Arabian Sea", 15, 65], ["Coral Sea", -18, 155], ["Gulf Stream", 35, -70]].map(([name, lat, lon]) => ({ name, lat, lon }));
+export async function getOceans() { const r = await safe("om:marine", 30 * 60e3, () => om.fetchMarine(OCEAN_POINTS)); return r.ok ? { available: true, points: r.value, meta: r.value[0].meta } : { available: false, error: r.error, points: [] }; }
+export async function getAirQuality() { const places = CITIES.slice(0, 20).map((c) => ({ name: c.name, iso2: c.iso2, lat: c.lat, lon: c.lon })); const r = await safe("om:air", 30 * 60e3, () => om.fetchAir(places)); return r.ok ? { available: true, places: r.value, meta: r.value[0].meta } : { available: false, error: r.error, places: [] }; }
+export async function getIss() { const r = await safe("iss", 5e3, extras.fetchIss); return r.ok ? { available: true, ...r.value } : { available: false, error: r.error }; }
+export async function getAstronomy() {
+  const [apod, exo, xr, neo] = await Promise.all([safe("apod", 6 * 3600e3, extras.fetchApod), safe("exo", 24 * 3600e3, extras.fetchExoplanets), safe("goes", 5 * 60e3, extras.fetchXray), getNeo()]);
+  return { apod: apod.ok ? { available: true, ...apod.value } : { available: false, error: apod.error }, exoplanets: exo.ok ? { available: true, planets: exo.value } : { available: false, error: exo.error, planets: [] }, xray: xr.ok ? { available: true, ...xr.value } : { available: false, error: xr.error }, neo, meteorShowers: { items: METEOR_SHOWERS.map(([name, peak]) => ({ name, peak })), meta: meta({ provider: "ORBIS reference", source: "Annual meteor shower calendar (approximate peak dates)", status: "PERIODIC", frequency: "annual", dataType: "reference", note: "Peaks recur each year; exact timing and moon phase vary. Hand-entered." }) } };
+}
+export const SPECIES = ["Orcinus orca", "Balaenoptera musculus", "Carcharodon carcharias", "Chelonia mydas", "Mobula birostris", "Megaptera novaeangliae", "Thunnus thynnus", "Architeuthis dux"];
+export async function getSpecies(name) { const r = await safe("gbif:" + name, 3600e3, () => extras.fetchGbif(name)); return r.ok ? { available: true, ...r.value } : { available: false, error: r.error }; }
+export async function getTechNews() { const r = await safe("hn", 5 * 60e3, extras.fetchHn); return r.ok ? { available: true, stories: r.value } : { available: false, error: r.error, stories: [] }; }
+export async function getFiler(key) { if (!extras.FILERS[key]) return null; const r = await safe("edgar:" + key, 3600e3, () => extras.fetchEdgar(key)); return r.ok ? { available: true, key, ...r.value } : { available: false, key, name: extras.FILERS[key][1], error: r.error }; }
+export const getFilerList = () => ({ filers: Object.entries(extras.FILERS).map(([key, [cik, name]]) => ({ key, cik, name })) });
+export const getMegaprojects = () => ({ projects: MEGAPROJECTS, asOf: AS_OF, meta: meta({ provider: "ORBIS reference", source: "Hand-curated from public project pages", status: "ESTIMATE", frequency: "manual", dataType: "project status (reference)", note: `Statuses are as of ${AS_OF} and change often. Verify with the linked source.` }) });
+export const getChokepoints = () => ({ chokepoints: CHOKEPOINTS, meta: meta({ provider: "ORBIS reference", source: "Qualitative description of major maritime chokepoints", status: "ESTIMATE", frequency: "manual", dataType: "reference", note: "No traffic volumes are shown: AIS data needs a licensed provider." }) });
+export const getSimulationModels = () => ({ models: Object.entries(MODELS).map(([id, m]) => ({ id, label: m.label, defaults: m.defaults })) });
+export const runSimulation = (model, params) => simulate(model, params);

@@ -38,7 +38,7 @@ export function parseRss(xml, sourceName) {
   }).filter(Boolean);
 }
 export async function fetchRss() {
-  const feeds = [["BBC News", "https://feeds.bbci.co.uk/news/world/rss.xml"], ["Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"]];
+  const feeds = [["BBC News", "https://feeds.bbci.co.uk/news/world/rss.xml"], ["Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"], ["UN News", "https://news.un.org/feed/subscribe/en/news/all/rss.xml"], ["NASA", "https://www.nasa.gov/feed/"]];
   const res = await Promise.allSettled(feeds.map(async ([n, u]) => parseRss(await fetchRaw(u, { id: RSS }), n)));
   const ok = res.filter((r) => r.status === "fulfilled").flatMap((r) => r.value); if (!ok.length) throw new Error("all RSS feeds failed");
   registry.ok(RSS, "LIVE"); return ok;

@@ -83,3 +83,7 @@ svg text { fill: var(--text2); font: 10px var(--mono); }
 #top .menu { display: none; }
 .sk { background: linear-gradient(90deg, var(--panel), var(--elev), var(--panel)); background-size: 200% 100%; animation: sk 1.2s infinite; height: 14px; border-radius: 2px; margin: 6px 0; } @keyframes sk { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+#side .grp { padding: 12px 14px 4px; font: 9.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+#side.collapsed .grp { display: none; }
+@media print { #side, #top, #status, .tabs, button { display: none !important; } body { background: #fff; color: #000; } }

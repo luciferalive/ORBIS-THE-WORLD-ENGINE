@@ -24,6 +24,19 @@ export async function route(method, url, body, headers = {}) {
     if (p === "/api/events") { const r = await svc.getEvents(); const list = svc.filterEvents(r.events, { category: q.get("category"), country: q.get("country"), severity: q.get("severity"), q: q.get("q"), sort: q.get("sort") || "latest" }); return { events: list, total: r.events.length, feeds: r.feeds, sample: r.sample }; }
     if (seg[1] === "events" && seg.length === 3) { const r = await svc.getEvents(); const e = r.events.find((x) => x.id === decodeURIComponent(seg[2])); if (!e) throw new HttpError(404, "event not found"); const related = r.events.filter((x) => x.id !== e.id && (x.category === e.category || x.countries.some((c) => e.countries.includes(c)))).slice(0, 6); return { event: e, related, sample: r.sample }; }
     if (p === "/api/quakes") return svc.getQuakes();
+    if (p === "/api/indicator-table") return (await svc.getIndicatorTable((q.get("keys") || "").split(",").filter(Boolean))) || (() => { throw new HttpError(400, "no valid indicator keys"); })();
+    if (p === "/api/climate") return svc.getClimate();
+    if (p === "/api/oceans") return svc.getOceans();
+    if (p === "/api/airquality") return svc.getAirQuality();
+    if (p === "/api/iss") return svc.getIss();
+    if (p === "/api/astronomy") return svc.getAstronomy();
+    if (p === "/api/species") return q.get("name") ? svc.getSpecies(q.get("name")) : { species: svc.SPECIES };
+    if (p === "/api/technews") return svc.getTechNews();
+    if (p === "/api/filers") return svc.getFilerList();
+    if (p.startsWith("/api/filers/")) return (await svc.getFiler(p.slice(12))) || (() => { throw new HttpError(404, "unknown filer"); })();
+    if (p === "/api/megaprojects") return svc.getMegaprojects();
+    if (p === "/api/chokepoints") return svc.getChokepoints();
+    if (p === "/api/simulate/models") return svc.getSimulationModels();
     if (p === "/api/launches") return svc.getLaunches();
     if (p === "/api/neo") return svc.getNeo();
     if (p === "/api/spaceweather") return svc.getSpaceWeather();
@@ -61,6 +74,7 @@ export async function route(method, url, body, headers = {}) {
     if (m && method === "DELETE" && !m[2]) return providers.removeCustom(m[1]);
     throw new HttpError(404, "unknown admin route");
   }
+  if (method === "POST" && p === "/api/simulate") { try { return svc.runSimulation(body && body.model, (body && body.params) || {}); } catch (e) { throw new HttpError(400, e.message); } }
   if (method === "POST" && p === "/api/alerts/evaluate") { const r = await svc.evaluateAlertRules(body && body.rules); if (r.error) throw new HttpError(400, r.error); return r; }
   if (method === "POST" && p === "/api/analyst/ask") { if (!body || typeof body.question !== "string" || !body.question.trim()) throw new HttpError(400, "question required"); const r = await ai.ask(body.question); if (!r.enabled) return { enabled: false, message: "AI Analyst is disabled: no ANTHROPIC_API_KEY configured on the server. No answer was generated." }; return r; }
   throw new HttpError(404, "not found");

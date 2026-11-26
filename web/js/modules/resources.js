@@ -1,3 +1,4 @@
+import { indicatorBox } from "./indicators.js";
 import { sourcesBox } from "../components/sources.js";
 import { h, fill, fmt, badge, box, state, loading, banner, chg } from "../components/ui.js";
 import { api } from "../services/api.js";
@@ -14,4 +15,4 @@ async function _render(el, arg) {
     box("All tracked commodity prices", h("div", null, R.prices.map((p) => h("div", { class: "stat" }, h("a", { href: "#/markets/" + p.id }, p.name), h("span", { class: "row", style: { flexWrap: "nowrap" } }, sparkCell(p), h("span", { class: "mono" }, fmt.price(p.price)), chg(p.changePct), badge(p.meta)))))));
 }
 
-export async function render(el, arg) { const c = await _render(el, arg); el.append(h("div", { style: { height: "10px" } }), sourcesBox(['twelvedata', 'worldbank'])); return c; }
+export async function render(el, arg) { const c = await _render(el, arg); el.append(h("div", { style: { height: "10px" } }), indicatorBox(["renewableElecPct", "fossilElecPct", "nuclearElecPct", "hydroElecPct", "energyUsePerCapita", "energyImportsPct", "forestPct", "co2PerCapita"], { title: "Energy mix and environment by country" }), h("div", { style: { height: "10px" } }), sourcesBox(['twelvedata', 'worldbank'])); return c; }

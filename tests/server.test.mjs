@@ -209,3 +209,43 @@ test("offline: space/science/cyber/aviation feeds say unavailable instead of inv
   for (const f of ["getLaunches", "getNeo", "getPublications", "getPreprints", "getVulnerabilities", "getAircraft"]) { const r = await svc[f](); assert.equal(r.available, false, f); }
   assert.equal((await svc.getSpaceWeather()).available, false); assert.equal(svc.getSatellites("bogus"), null);
 });
+
+// ---- batch 3 adapters, simulations
+test("NOAA GML parser skips comments and missing sentinel values", async () => {
+  const { parseGml } = await P("climate"); const rows = Array.from({ length: 14 }, (_, i) => `2025 ${String((i % 12) + 1).padStart(2)} 2025.${i} ${420 + i} ${419 + i} 28 0.3 0.1`).join("\n");
+  const o = parseGml("# comment\n" + rows + "\n2025 12 2025.96 -99.99 -99.99 0 0 0\n", { unit: "ppm", label: "CO2" }); assert.equal(o.points.length, 14); assert.equal(o.latest.v, 433); assert.throws(() => parseGml("# only\n", { unit: "ppm", label: "x" }));
+});
+test("GISTEMP parser: annual J-D anomalies and '***' missing months", async () => {
+  const { parseGistemp } = await P("climate"); const o = parseGistemp("Land-Ocean: Global Means\nYear,Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec,J-D,D-N\n2023,.87,.98,1.20,1.00,.94,1.07,1.20,1.19,1.48,1.34,1.42,1.37,1.17,1.15\n2024,1.27,1.40,1.30,***,***,***,***,***,***,***,***,***,***,***\n");
+  assert.equal(o.annual.length, 1); assert.equal(o.annual[0].anomalyC, 1.17); assert.equal(o.latestMonth.v, 1.30);
+});
+test("NSIDC sea ice parser reads daily extent rows and ignores headers", async () => {
+  const { parseSeaIce } = await P("climate"); const rows = Array.from({ length: 40 }, (_, i) => `2025, 1, ${i % 28 + 1}, ${14 + i / 100}, 0, Near-Real-Time`).join("\n"); const o = parseSeaIce("Year, Month, Day, Extent, Missing, Source Data\n YYYY, MM, DD, 10^6 sq km, 10^6 sq km, Source data product web site\n" + rows, "north");
+  assert.equal(o.points.length, 40); assert.equal(o.meta.units, "million km²");
+});
+test("Open-Meteo marine and air parsers", async () => {
+  const { parseMarine, parseAir } = await P("openmeteo"); const m = parseMarine([{ latitude: 45, longitude: -30, current: { time: "2026-11-26T10:00", wave_height: 2.1, wave_period: 9, sea_surface_temperature: 14.2 } }], [{ name: "North Atlantic" }]);
+  assert.equal(m[0].seaTempC, 14.2); assert.match(m[0].meta.note, /Model output/); const a = parseAir([{ latitude: 28, longitude: 77, current: { time: "2026-11-26T10:00", us_aqi: 180, pm2_5: 90, ozone: 40 } }], [{ name: "Delhi", iso2: "IN" }]); assert.equal(a[0].usAqi, 180); assert.match(a[0].meta.note, /NOT stratospheric/);
+});
+test("extras: ISS, APOD, exoplanets, X-ray class, GBIF, HN, EDGAR", async () => {
+  const x = await P("extras");
+  assert.equal(x.parseIss({ latitude: 10, longitude: 20, altitude: 420, velocity: 27600, timestamp: 1790000000, visibility: "daylight" }).lat, 10); assert.throws(() => x.parseIss({}));
+  assert.equal(x.parseApod({ title: "T", date: "2026-11-26", media_type: "image", url: "https://x/a.jpg", explanation: "e" }).url, "https://x/a.jpg"); assert.equal(x.parseApod({ title: "T", date: "d", media_type: "video", url: "https://y" }).url, null);
+  assert.equal(x.parseExoplanets([{ pl_name: "K2-18 b", hostname: "K2-18", disc_year: 2015, discoverymethod: "Transit", pl_rade: 2.6 }, {}]).length, 1);
+  const xr = x.parseXray([{ time_tag: "2026-11-26T10:00:00Z", flux: 2.3e-5, energy: "0.1-0.8nm" }, { time_tag: "2026-11-26T10:00:00Z", flux: 9e-9, energy: "0.05-0.4nm" }]); assert.equal(xr.latest.flareClass, "M2.3"); assert.equal(xr.points.length, 1);
+  const g = x.parseGbifOcc({ count: 1000, results: [{ key: 1, decimalLatitude: 10, decimalLongitude: 20, eventDate: "2024-05-01", basisOfRecord: "HUMAN_OBSERVATION" }, { key: 2 }] }, { canonical: "Orcinus orca" }); assert.equal(g.records.length, 1); assert.match(g.meta.note, /NOT real-time/);
+  assert.equal(x.parseHn({ hits: [{ objectID: "1", title: "A", points: 5 }, { objectID: "2" }] }).length, 1);
+  const e = x.parseEdgar({ cik: 1067983, name: "BERKSHIRE HATHAWAY INC", filings: { recent: { form: ["8-K", "10-Q"], filingDate: ["2026-11-01", "2026-10-01"], accessionNumber: ["0001-26-1", "0001-26-2"], primaryDocument: ["a.htm", "b.htm"] } } }); assert.equal(e.filings[0].form, "8-K"); assert.match(e.filings[0].url, /1067983/); assert.match(e.meta.note, /AUM/);
+});
+test("simulations are deterministic, bounded, and labelled hypothetical", async () => {
+  const { simulate } = await import("../server/intelligence/simulate.js"); const a = simulate("oil_shock", { oilChangePct: 30 }), b = simulate("oil_shock", { oilChangePct: 30 });
+  assert.equal(a.outputs.totalCpiPp, b.outputs.totalCpiPp); assert.ok(Math.abs(a.outputs.directCpiPp - 4 * 0.3 * 0.6) < 1e-9); assert.equal(a.kind, "SIMULATION"); assert.equal(a.hypothetical, true);
+  assert.ok(simulate("supply_disruption", { shortfallPct: 10, bufferMonths: 99 }).outputs.priceChangePct === 0); assert.ok(simulate("population", { startGrowthPct: 1, endGrowthPct: -1, yearsToEnd: 10, horizonYears: 30 }).outputs.peakYearOffset <= 10);
+  assert.throws(() => simulate("nope")); assert.throws(() => simulate("oil_shock", { oilChangePct: "abc" }));
+});
+test("API: new endpoints respond honestly offline", async () => {
+  const U = (p) => new URL("http://x" + p); for (const p of ["/api/climate", "/api/oceans", "/api/airquality", "/api/iss", "/api/astronomy", "/api/technews"]) { const r = await route("GET", U(p)); assert.ok(r, p); }
+  assert.equal((await route("GET", U("/api/oceans"))).available, false); assert.equal((await route("GET", U("/api/indicator-table?keys=railKm,roadKm"))).available, false); await assert.rejects(() => route("GET", U("/api/indicator-table?keys=bogus")));
+  assert.ok((await route("GET", U("/api/megaprojects"))).projects.length > 10); const s = await route("POST", U("/api/simulate"), { model: "fx_depreciation", params: { depreciationPct: 20 } }); assert.equal(s.hypothetical, true); await assert.rejects(() => route("POST", U("/api/simulate"), { model: "bogus" }));
+  assert.equal((await route("GET", U("/api/filers/berkshire"))).available, false); await assert.rejects(() => route("GET", U("/api/filers/bogus")));
+});

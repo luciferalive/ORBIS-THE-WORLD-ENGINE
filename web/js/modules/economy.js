@@ -1,3 +1,4 @@
+import { indicatorBox } from "./indicators.js";
 import { sourcesBox } from "../components/sources.js";
 import { h, fill, fmt, badge, box, state, loading, banner, chg } from "../components/ui.js";
 import { api } from "../services/api.js";
@@ -16,4 +17,4 @@ async function _render(el) {
     box("All countries", table([{ key: "name", label: "Country", render: (c) => c.flag + " " + c.name }, { key: "region", label: "Region" }, { key: "gdp", label: "GDP", num: true, render: (c) => fmt.usd(c.gdp) }, { key: "gdppc", label: "GDP / capita", num: true, sort: (c) => c.gdp / c.population, render: (c) => "$" + fmt.compact(c.gdp / c.population) }, { key: "gdpGrowth", label: "Growth", num: true, render: (c) => chg(c.gdpGrowth, 1) }, { key: "inflation", label: "Inflation", num: true, render: (c) => fmt.pct(c.inflation, 1) }, { key: "population", label: "Population", num: true, render: (c) => fmt.compact(c.population) }, { key: "currency", label: "Ccy" }, { key: "s", label: "Data", sort: () => 0, render: (c) => badge({ status: c.provenance.gdp.status, provider: c.provenance.gdp.source, source: c.provenance.gdp.source, frequency: "reference year " + c.provenance.gdp.year, dataType: "economy" }, c.provenance.gdp.status) }], cs, { sortKey: "gdp", onRow: (c) => (location.hash = "#/orbis/" + c.iso2) })));
 }
 
-export async function render(el, arg) { const c = await _render(el, arg); el.append(h("div", { style: { height: "10px" } }), sourcesBox(['worldbank', 'fred'])); return c; }
+export async function render(el, arg) { const c = await _render(el, arg); el.append(h("div", { style: { height: "10px" } }), indicatorBox(["unemployment", "debtGdp", "tradeGdp", "currentAccountGdp", "reservesUsd", "gdpPerCapita"], { title: "More economic indicators by country" }), h("div", { style: { height: "10px" } }), sourcesBox(['worldbank', 'fred'])); return c; }
