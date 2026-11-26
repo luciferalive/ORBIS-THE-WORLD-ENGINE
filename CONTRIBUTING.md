@@ -1,0 +1,2 @@
+# Contributing
+Add a provider: (1) adapter in `server/providers/` with a pure `parse*` function, (2) fixture test in `tests/`, (3) entry in `server/core/catalogue.js`, (4) a service function in `server/services.js` that returns `{available:false,error}` on failure, never invented data, (5) route in `server/api.js`, (6) show it in a module with a status badge and `sourcesBox`. Run `npm test` and `node scripts/gen-sources-doc.mjs`.

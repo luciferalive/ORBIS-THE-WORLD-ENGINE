@@ -1,8 +1,9 @@
+import { sourcesBox } from "../components/sources.js";
 import { h, fill, fmt, badge, box, state, loading, banner } from "../components/ui.js";
 import { api } from "../services/api.js";
 import { lineChart } from "../components/charts.js";
 import { head } from "./common.js";
-export async function render(el, arg) {
+async function _render(el, arg) {
   fill(el, head("Forecast", "Scenario projections"), loading());
   const [P, M] = await Promise.all([api.forecastPop(), api.markets()]); const id = M.assets.some((a) => a.id === arg) ? arg : "btc"; const A = await api.forecastAsset(id, 30);
   const S = P.scenarios, col = { optimistic: "#55D6A7", base: "#65A9FF", adverse: "#FF5F65" };
@@ -14,3 +15,5 @@ export async function render(el, arg) {
     box("World population scenarios", h("div", null, popChart, h("p", { class: "small t2" }, P.method)), { meta: P.meta }), h("div", { style: { height: "10px" } }),
     box("Asset projection cone", h("div", null, h("div", { class: "row", style: { marginBottom: "8px" } }, sel, A.meta.status === "DEMO" ? h("span", { class: "pill DEMO" }, "BASED ON DEMO SERIES") : null), cone, h("p", { class: "small t2" }, `Method: log-return drift (${(A.cone.muPerStep * 100).toFixed(4)}%/step) and volatility (${(A.cone.sdPerStep * 100).toFixed(3)}%/step) from ${A.cone.observations} observations, extrapolated with a random-walk cone. It ignores news, regime shifts and fat tails, so real outcomes will often leave the band.`)), { meta: A.meta }));
 }
+
+export async function render(el, arg) { const c = await _render(el, arg); el.append(h("div", { style: { height: "10px" } }), sourcesBox(['worldbank', 'coingecko'])); return c; }

@@ -1,3 +1,4 @@
+import { sourcesBox } from "../components/sources.js";
 import { h, fill, fmt, badge, box, state, loading, svg } from "../components/ui.js";
 import { api } from "../services/api.js";
 import { lineChart, barChart } from "../components/charts.js";
@@ -10,7 +11,7 @@ export function livePop(anchor, now = Date.now()) {
   const jan = Date.UTC(d.getUTCFullYear(), 0, 1);
   return { population: anchor.population + (bps - dps) * dt, birthsToday: bps * (now - mid), deathsToday: dps * (now - mid), birthsYear: bps * (now - jan), deathsYear: dps * (now - jan), birthsPerSec: bps * 1000, deathsPerSec: dps * 1000 };
 }
-export async function render(el) {
+async function _render(el) {
   fill(el, head("Humanity", "Population, births and deaths"), loading());
   const H = await api.humanity(); const stop = [];
   const ids = {}; const slot = (k) => (ids[k] = h("span", { class: "mono" }));
@@ -27,3 +28,5 @@ export async function render(el) {
   const tick = () => { const l = livePop(H.anchor); pop.textContent = fmt.int(l.population); bd.textContent = fmt.int(l.birthsToday); dd.textContent = fmt.int(l.deathsToday); by.textContent = fmt.int(l.birthsYear); dy.textContent = fmt.int(l.deathsYear); net.textContent = fmt.int(l.birthsToday - l.deathsToday); };
   tick(); const t = setInterval(tick, 100); stop.push(() => clearInterval(t)); return () => stop.forEach((f) => f());
 }
+
+export async function render(el, arg) { const c = await _render(el, arg); el.append(h("div", { style: { height: "10px" } }), sourcesBox(['worldbank'])); return c; }

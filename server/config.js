@@ -10,6 +10,8 @@ export const config = {
   twelvedataKey: process.env.TWELVEDATA_KEY || "",
   fredKey: process.env.FRED_API_KEY || "",
   alphaVantageKey: process.env.ALPHAVANTAGE_KEY || "",
+  nasaKey: process.env.NASA_API_KEY || "DEMO_KEY",
+  adminToken: process.env.ORBIS_ADMIN_TOKEN || "",
   anthropicKey: process.env.ANTHROPIC_API_KEY || "",
   analystModel: process.env.ANALYST_MODEL || "claude-sonnet-4-5",
   cacheDir: new URL("../data/cache/", import.meta.url).pathname,

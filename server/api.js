@@ -5,14 +5,16 @@ import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import * as svc from "./services.js";
 import * as ai from "./ai.js";
+import * as providers from "./core/providers.js";
 import { RANGES } from "./data/demo.js";
 
 const WEB = fileURLToPath(new URL("../web/", import.meta.url));
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".otf": "font/otf", ".json": "application/json", ".png": "image/png" };
 const SEC = { "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "same-origin", "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self'; frame-ancestors 'none'" };
+const adminHits = new Map();
 class HttpError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 
-export async function route(method, url, body) {
+export async function route(method, url, body, headers = {}) {
   const p = url.pathname, q = url.searchParams, seg = p.split("/").filter(Boolean);
   if (method === "GET") {
     if (p === "/api/status") return svc.getStatus();
@@ -22,6 +24,15 @@ export async function route(method, url, body) {
     if (p === "/api/events") { const r = await svc.getEvents(); const list = svc.filterEvents(r.events, { category: q.get("category"), country: q.get("country"), severity: q.get("severity"), q: q.get("q"), sort: q.get("sort") || "latest" }); return { events: list, total: r.events.length, feeds: r.feeds, sample: r.sample }; }
     if (seg[1] === "events" && seg.length === 3) { const r = await svc.getEvents(); const e = r.events.find((x) => x.id === decodeURIComponent(seg[2])); if (!e) throw new HttpError(404, "event not found"); const related = r.events.filter((x) => x.id !== e.id && (x.category === e.category || x.countries.some((c) => e.countries.includes(c)))).slice(0, 6); return { event: e, related, sample: r.sample }; }
     if (p === "/api/quakes") return svc.getQuakes();
+    if (p === "/api/launches") return svc.getLaunches();
+    if (p === "/api/neo") return svc.getNeo();
+    if (p === "/api/spaceweather") return svc.getSpaceWeather();
+    if (p === "/api/satellites") return svc.getSatellites(q.get("group") || "stations") || (() => { throw new HttpError(400, "unknown group"); })();
+    if (p === "/api/publications") return svc.getPublications((q.get("q") || "").slice(0, 100));
+    if (p === "/api/preprints") return svc.getPreprints(q.get("cat") || "astro-ph").catch((e) => { throw new HttpError(400, e.message); });
+    if (p === "/api/vulnerabilities") return svc.getVulnerabilities();
+    if (p === "/api/aircraft") return svc.getAircraft();
+    if (p === "/api/providers") return { providers: providers.listProviders(), adminEnabled: !!config.adminToken, offline: config.offline, generatedAt: new Date().toISOString() };
     if (p === "/api/anomalies") return svc.getAnomalies();
     if (p === "/api/hazards") return svc.getHazards();
     if (p === "/api/weather") return svc.getWeather();
@@ -42,6 +53,14 @@ export async function route(method, url, body) {
     if (p === "/api/analyst/status") return { enabled: ai.enabled(), model: ai.enabled() ? config.analystModel : null };
     if (p === "/api/analyst/context") return ai.buildContext();
   }
+  if (p.startsWith("/api/admin/")) {
+    providers.requireAdmin(headers["x-admin-token"]);
+    if (method === "POST" && p === "/api/admin/providers") return providers.registerCustom(body || {});
+    const m = p.match(/^\/api\/admin\/providers\/([a-z0-9-]+)(\/test)?$/);
+    if (m && method === "POST" && m[2]) return providers.testProvider(m[1]);
+    if (m && method === "DELETE" && !m[2]) return providers.removeCustom(m[1]);
+    throw new HttpError(404, "unknown admin route");
+  }
   if (method === "POST" && p === "/api/alerts/evaluate") { const r = await svc.evaluateAlertRules(body && body.rules); if (r.error) throw new HttpError(400, r.error); return r; }
   if (method === "POST" && p === "/api/analyst/ask") { if (!body || typeof body.question !== "string" || !body.question.trim()) throw new HttpError(400, "question required"); const r = await ai.ask(body.question); if (!r.enabled) return { enabled: false, message: "AI Analyst is disabled: no ANTHROPIC_API_KEY configured on the server. No answer was generated." }; return r; }
   throw new HttpError(404, "not found");
@@ -58,11 +77,13 @@ export function createApp() {
     if (!url.pathname.startsWith("/api/")) return staticFile(res, url.pathname);
     const send = (s, b) => { res.writeHead(s, { "Content-Type": "application/json", "Cache-Control": "no-store", ...SEC }); res.end(JSON.stringify(b)); };
     try {
+      if (url.pathname.startsWith("/api/admin/")) { const k = req.socket.remoteAddress + ":" + Math.floor(Date.now() / 60000); adminHits.set(k, (adminHits.get(k) || 0) + 1); if (adminHits.get(k) > 30) throw new HttpError(429, "too many admin requests"); if (adminHits.size > 500) adminHits.clear(); }
       let body = null;
       if (req.method === "POST") { const parts = []; let n = 0; for await (const c of req) { n += c.length; if (n > 32768) throw new HttpError(413, "too large"); parts.push(c); } try { body = JSON.parse(Buffer.concat(parts).toString() || "{}"); } catch { throw new HttpError(400, "invalid JSON"); } }
-      send(200, await route(req.method, url, body));
+      send(200, await route(req.method, url, body, req.headers));
     } catch (e) {
-      if (e instanceof HttpError) return send(e.status, { error: e.message });
+      if (e instanceof HttpError || (e.status >= 400 && e.status < 600)) return send(e.status, { error: e.message });
+      if (url.pathname.startsWith("/api/admin/")) return send(400, { error: e.message });
       console.error("[orbis]", e); send(500, { error: "Internal error: " + String(e.message || e).slice(0, 160) });
     }
   };

@@ -1,3 +1,4 @@
+import { sourcesBox } from "../components/sources.js";
 import { h, fill, fmt, badge, box, chg, state, loading, banner } from "../components/ui.js";
 import { api } from "../services/api.js";
 import { lineChart } from "../components/charts.js";
@@ -7,7 +8,7 @@ import { store, subscribe } from "../store.js";
 const TABS = [["all", "All"], ["watch", "Watchlist ★"], ["stock", "Stocks"], ["index", "Indices"], ["crypto", "Crypto"], ["forex", "Forex"], ["metal", "Metals"], ["commodity", "Commodities"]];
 const RANGES = ["1H", "24H", "7D", "1M", "3M", "1Y", "ALL"];
 let tab = "all", view = "table";
-export async function render(el, arg) {
+async function _render(el, arg) {
   fill(el, head("Markets", "Stocks, crypto, forex, metals"), loading());
   const M = await api.markets(); const assets = M.assets; let unsub = () => {};
   const demo = assets.filter((a) => a.meta.status === "DEMO").length;
@@ -34,3 +35,5 @@ async function showDetail(host, a, redraw) {
   fill(host, h("div", { style: { height: "10px" } }), box(`${a.name} (${a.symbol})`, h("div", null, h("div", { class: "row", style: { marginBottom: "8px" } }, h("span", { class: "mono", style: { fontSize: "24px" } }, fmt.price(a.price)), chg(a.changePct), badge(a.meta), watchBtn(a.id, redraw), h("a", { href: "#/forecast/" + a.id }, "Projection →")), btns, chart, h("p", { class: "small muted" }, a.meta.note || "")), { right: h("a", { href: "#/markets" }, "Close ✕") }));
   host.scrollIntoView({ block: "nearest" }); load(range);
 }
+
+export async function render(el, arg) { const c = await _render(el, arg); el.append(h("div", { style: { height: "10px" } }), sourcesBox(['coingecko', 'frankfurter', 'twelvedata'])); return c; }

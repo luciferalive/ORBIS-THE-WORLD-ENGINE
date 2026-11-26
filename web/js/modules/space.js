@@ -1,0 +1,22 @@
+import { h, fill, fmt, badge, box, state, loading, banner } from "../components/ui.js";
+import { api } from "../services/api.js";
+import { table } from "../components/table.js";
+import { lineChart } from "../components/charts.js";
+import { head } from "./common.js";
+import { sourcesBox } from "../components/sources.js";
+const GROUPS = [["stations", "Space stations"], ["visual", "Brightest"], ["weather", "Weather"], ["gps-ops", "GPS"], ["science", "Science"], ["starlink", "Starlink"]];
+let group = "stations";
+export async function render(el) {
+  fill(el, head("Space", "Launches, asteroids, space weather, satellites"), loading());
+  const [L, N, W] = await Promise.all([api.launches(), api.neo(), api.spaceweather()]); const satBox = h("div");
+  const un = (title, r, extra) => box(title, state("Source unavailable", r.error || "no data"), { meta: { status: "UNAVAILABLE", provider: extra, source: extra, frequency: "n/a", dataType: title, note: r.error || "" } });
+  const loadSats = async (g) => { group = g; fill(satBox, loading()); try { const S = await api.satellites(g); fill(satBox, h("div", { class: "tabs" }, GROUPS.map(([k, l]) => h("button", { class: k === g ? "on" : "", onclick: () => loadSats(k) }, l))), S.available ? table([{ key: "name", label: "Name" }, { key: "noradId", label: "NORAD", num: true }, { key: "meanAltitudeKm", label: "Mean alt km", num: true }, { key: "periodMin", label: "Period min", num: true, render: (s) => (s.periodMin ? s.periodMin.toFixed(1) : "n/a") }, { key: "inclinationDeg", label: "Incl °", num: true, render: (s) => s.inclinationDeg.toFixed(1) }, { key: "epoch", label: "Epoch" }], S.satellites.slice(0, 200), { sortKey: "name", desc: false }) : state("CelesTrak unavailable", S.error), h("p", { class: "small muted" }, "Orbital elements only. ORBIS does not compute live satellite positions, so none are shown.")); } catch (e) { fill(satBox, state("Satellites unavailable", e.message)); } };
+  fill(el, head("Space", "Launches, asteroids, space weather, satellites"),
+    h("div", { class: "grid g2" },
+      L.available ? box("Upcoming launches", table([{ key: "net", label: "NET (UTC)", render: (l) => fmt.datetime(l.net) }, { key: "name", label: "Launch" }, { key: "provider", label: "Provider" }, { key: "location", label: "Site" }, { key: "status", label: "Status" }], L.launches, { sortKey: "net", desc: false }), { meta: L.launches[0] && L.launches[0].meta }) : un("Upcoming launches", L, "Launch Library 2"),
+      W.available ? box("Geomagnetic activity (Kp)", h("div", null, h("div", { class: "row" }, h("span", { class: "mono", style: { fontSize: "22px" } }, "Kp " + W.latest.kp.toFixed(1)), h("span", { class: "t2" }, W.latest.storm), h("span", { class: "small muted" }, fmt.ago(W.latest.time))), lineChart({ series: [{ color: "#A68BFA", points: W.points.slice(-56).map((p) => ({ x: Date.parse(p.time), y: p.kp })) }], xIsTime: true, height: 150, yFmt: (v) => v.toFixed(1) })), { meta: W.meta }) : un("Geomagnetic activity (Kp)", W, "NOAA SWPC")),
+    h("div", { style: { height: "10px" } }),
+    N.available ? box("Near-Earth asteroid close approaches (next 7 days)", table([{ key: "approach", label: "Approach" }, { key: "name", label: "Object" }, { key: "diameterM", label: "Max diameter m", num: true, render: (o) => (o.diameterM ? Math.round(o.diameterM) : "n/a") }, { key: "missKm", label: "Miss distance km", num: true, render: (o) => fmt.compact(o.missKm) }, { key: "velKmS", label: "km/s", num: true, render: (o) => o.velKmS.toFixed(1) }, { key: "hazardous", label: "NASA flag", render: (o) => (o.hazardous ? "potentially hazardous" : "-") }], N.objects, { sortKey: "approach", desc: false }), { meta: N.objects[0] && N.objects[0].meta }) : un("Near-Earth asteroids", N, "NASA NeoWs"),
+    h("div", { style: { height: "10px" } }), box("Satellite catalogue", satBox, { meta: { status: "RECENT", provider: "CelesTrak", source: "GP element sets", frequency: "several times/day", dataType: "orbital elements", note: "Elements, not positions." } }), h("div", { style: { height: "10px" } }), sourcesBox(["launchlibrary", "swpc", "nasa", "celestrak"]));
+  loadSats(group);
+}

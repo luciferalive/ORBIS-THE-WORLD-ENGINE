@@ -1,8 +1,9 @@
+import { sourcesBox } from "../components/sources.js";
 import { h, fill, fmt, badge, box, state, loading, banner, sev, openDrawer } from "../components/ui.js";
 import { api } from "../services/api.js";
 import { head, eventItem } from "./common.js";
 const CATS = ["", "war", "politics", "economy", "energy", "technology", "natural_disaster", "health", "trade", "science", "other"];
-export async function render(el, arg) {
+async function _render(el, arg) {
   fill(el, head("World Live", "Event feed"), loading());
   const f = { category: "", severity: "", q: "", sort: "time" }; const list = h("div", { class: "feed" }), info = h("div", { class: "small muted" });
   let first;
@@ -24,3 +25,5 @@ function detail(e) {
     h("div", { class: "row", style: { marginTop: "6px" } }, (e.countries || []).map((c) => h("a", { class: "pill PERIODIC", href: "#/orbis/" + c }, c)), (e.commodities || []).map((c) => h("a", { class: "pill PERIODIC", href: "#/resources/" + c }, c)), (e.assets || []).map((a) => h("a", { class: "pill PERIODIC", href: "#/markets/" + a }, a))),
     h("h3", { class: "t2", style: { marginTop: "12px" } }, "Tags"), h("div", { class: "small t2" }, (e.tags || []).join(", ") || "none")), () => history.replaceState(null, "", "#/live"));
 }
+
+export async function render(el, arg) { const c = await _render(el, arg); el.append(h("div", { style: { height: "10px" } }), sourcesBox(['gdelt', 'rss', 'usgs', 'eonet'])); return c; }

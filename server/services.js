@@ -15,6 +15,14 @@ import * as geo from "./providers/geo.js";
 import * as eonet from "./providers/eonet.js";
 import * as om from "./providers/openmeteo.js";
 import * as fred from "./providers/fred.js";
+import * as swpc from "./providers/swpc.js";
+import * as launches from "./providers/launches.js";
+import * as nasa from "./providers/nasa.js";
+import * as celestrak from "./providers/celestrak.js";
+import * as openalex from "./providers/openalex.js";
+import * as arxiv from "./providers/arxiv.js";
+import * as cisa from "./providers/cisa.js";
+import * as opensky from "./providers/opensky.js";
 import { detectAll } from "./intelligence/anomaly.js";
 import { evaluate as evalAlerts, validateRule } from "./intelligence/alerts.js";
 import { buildSignals, projectCone } from "./intelligence/signals.js";
@@ -164,3 +172,14 @@ export async function evaluateAlertRules(rules) {
   const [a, e, q] = await Promise.all([getAssets(), getEvents(), getQuakes()]);
   return { triggered: evalAlerts(rules, { assets: a.assets, events: e.events, quakes: q.quakes }), evaluatedAt: new Date().toISOString() };
 }
+
+// ---------- space, science, cyber, aviation (V2/V6 live feeds). Each returns {available, ..., error} and never fabricates.
+const live = async (key, ttl, fn, name) => { const r = await safe(key, ttl, fn); return r.ok ? { available: true, stale: !!r.stale, [name]: r.value } : { available: false, error: r.error, [name]: [] }; };
+export const getLaunches = () => live("ll:upcoming", 15 * 60e3, launches.fetchUpcoming, "launches");
+export const getNeo = () => live("nasa:neo", 3600e3, nasa.fetchNeo, "objects");
+export async function getSpaceWeather() { const r = await safe("swpc:kp", 10 * 60e3, swpc.fetchKp); return r.ok ? { available: true, ...r.value } : { available: false, error: r.error }; }
+export const getSatellites = (g = "stations") => celestrak.GROUPS.includes(g) ? live("ct:" + g, 3600e3, () => celestrak.fetchGroup(g), "satellites") : null;
+export const getPublications = (q = "") => live("oa:" + q, 3600e3, () => openalex.fetchRecent(q), "works");
+export const getPreprints = (c = "astro-ph") => live("ax:" + c, 3600e3, () => arxiv.fetchRecent(c), "papers");
+export const getVulnerabilities = async () => { const r = await live("cisa:kev", 3600e3, cisa.fetchKev, "vulnerabilities"); r.total = r.vulnerabilities.length; r.vulnerabilities = r.vulnerabilities.slice(0, 100); return r; };
+export const getAircraft = () => live("os:states", 30e3, opensky.fetchStates, "aircraft");

@@ -164,3 +164,48 @@ test("API: anomalies and alert evaluation endpoints", async () => {
   const r = await route("POST", new URL("http://x/api/alerts/evaluate"), { rules: [{ id: "t", type: "asset_price", asset: "spx", op: ">", value: 1 }] }); assert.equal(r.triggered.length, 1);
   await assert.rejects(() => route("POST", new URL("http://x/api/alerts/evaluate"), { rules: [{ id: "t", type: "nope" }] }));
 });
+
+// ---- V2/V6 adapters
+const P = (n) => import("../server/providers/" + n + ".js");
+test("SWPC Kp parser (header-row array) and storm level", async () => {
+  const { parseKp } = await P("swpc"); const r = parseKp([["time_tag", "Kp", "a_running", "station_count"], ["2026-11-25 00:00:00.000", "2.33", "9", "8"], ["2026-11-25 03:00:00.000", "6.00", "80", "8"]]);
+  assert.equal(r.points.length, 2); assert.equal(r.latest.kp, 6); assert.match(r.latest.storm, /G2/); assert.throws(() => parseKp({}));
+});
+test("Launch Library parser keeps NET as target and skips incomplete rows", async () => {
+  const { parseLaunches } = await P("launches"); const o = parseLaunches({ results: [{ id: "a", name: "Falcon 9 | X", net: "2026-12-01T10:00:00Z", status: { name: "Go" }, launch_service_provider: { name: "SpaceX" }, pad: { name: "SLC-40", latitude: "28.5", longitude: "-80.5", location: { name: "Florida" } } }, { id: "b" }] });
+  assert.equal(o.length, 1); assert.equal(o[0].provider, "SpaceX"); assert.equal(o[0].lat, 28.5); assert.match(o[0].meta.note, /slip/);
+});
+test("NeoWs parser flattens by date and sorts", async () => {
+  const { parseNeo } = await P("nasa"); const o = parseNeo({ near_earth_objects: { "2026-11-27": [{ id: "1", name: "(2020 AB)", is_potentially_hazardous_asteroid: true, estimated_diameter: { meters: { estimated_diameter_max: 120 } }, close_approach_data: [{ close_approach_date_full: "2026-Nov-27 10:00", miss_distance: { kilometers: "1000000" }, relative_velocity: { kilometers_per_second: "12.5" } }] }], "2026-11-26": [{ id: "2", name: "x", close_approach_data: [{ close_approach_date: "2026-11-26", miss_distance: { kilometers: "5" }, relative_velocity: { kilometers_per_second: "1" } }] }] } });
+  assert.equal(o.length, 2); assert.equal(o[0].id, "2"); assert.equal(o[1].hazardous, true); assert.equal(o[1].missKm, 1000000);
+});
+test("CelesTrak GP parser computes period/altitude from mean motion, no position claimed", async () => {
+  const { parseGp } = await P("celestrak"); const o = parseGp([{ OBJECT_NAME: "ISS (ZARYA)", OBJECT_ID: "1998-067A", NORAD_CAT_ID: 25544, EPOCH: "2026-11-25T00:00:00", MEAN_MOTION: 15.5, ECCENTRICITY: 0.0005, INCLINATION: 51.64 }], "stations");
+  assert.ok(Math.abs(o[0].periodMin - 92.9) < 0.2); assert.ok(o[0].meanAltitudeKm > 380 && o[0].meanAltitudeKm < 450); assert.match(o[0].meta.note, /not computed/);
+});
+test("OpenAlex and arXiv parsers; arXiv items flagged PREPRINT", async () => {
+  const { parseWorks } = await P("openalex"); const w = parseWorks({ results: [{ id: "https://openalex.org/W1", title: "T", publication_date: "2026-11-01", primary_location: { source: { display_name: "Nature", type: "journal" } }, authorships: [{ author: { display_name: "A" } }], open_access: { is_oa: true }, cited_by_count: 3 }, { id: "x" }] });
+  assert.equal(w.length, 1); assert.equal(w[0].peerReviewed, "journal");
+  const { parseAtom } = await P("arxiv"); const a = parseAtom('<feed><entry><id>http://arxiv.org/abs/2611.0001v1</id><title>A &amp; B</title><summary> s </summary><published>2026-11-25T00:00:00Z</published><author><name>X Y</name></author><arxiv:primary_category term="astro-ph.CO"/></entry></feed>');
+  assert.equal(a[0].title, "A & B"); assert.equal(a[0].status, "PREPRINT"); assert.equal(a[0].category, "astro-ph.CO"); assert.throws(() => parseAtom("nope"));
+});
+test("CISA KEV parser sorts newest first; OpenSky parser drops grounded and null positions", async () => {
+  const { parseKev } = await P("cisa"); const k = parseKev({ vulnerabilities: [{ cveID: "CVE-1", dateAdded: "2026-01-01", knownRansomwareCampaignUse: "Known" }, { cveID: "CVE-2", dateAdded: "2026-02-01" }] });
+  assert.equal(k[0].cve, "CVE-2"); assert.equal(k[1].ransomware, true);
+  const { parseStates } = await P("opensky"); const s = parseStates({ time: 1790000000, states: [["abc", "UAL1 ", "US", 0, 0, -100, 40, 10000, false, 230, 90], ["def", "", "US", 0, 0, null, null, 0, false], ["ghi", "G", "IN", 0, 0, 77, 28, 0, true]] });
+  assert.equal(s.length, 1); assert.equal(s[0].callsign, "UAL1"); assert.match(s[0].meta.note, /volunteer/);
+});
+test("SSRF guard blocks http, private IPs, credentials, odd ports", async () => {
+  const { assertSafeUrl, isPrivateIp } = await import("../server/core/providers.js");
+  for (const u of ["http://example.com", "https://127.0.0.1/x", "https://10.0.0.5", "https://user:pw@example.com", "https://example.com:8443", "https://[::1]/", "https://169.254.169.254/latest"]) await assert.rejects(() => assertSafeUrl(u), undefined, u);
+  assert.equal(isPrivateIp("8.8.8.8"), false); assert.equal(isPrivateIp("192.168.1.1"), true);
+});
+test("providers endpoint lists catalogue with honest statuses; admin routes need a token", async () => {
+  const r = await route("GET", new URL("http://x/api/providers")); assert.ok(r.providers.length > 40); assert.equal(r.providers.find((p) => p.id === "nvd").status, "NOT INTEGRATED");
+  assert.equal(r.providers.find((p) => p.id === "fred").status, "CONFIGURATION REQUIRED"); assert.equal(r.providers.find((p) => p.id === "usgs").status, "OFFLINE MODE");
+  await assert.rejects(() => route("POST", new URL("http://x/api/admin/providers"), { name: "x", url: "https://example.com" }, {}), /ORBIS_ADMIN_TOKEN|admin/);
+});
+test("offline: space/science/cyber/aviation feeds say unavailable instead of inventing data", async () => {
+  for (const f of ["getLaunches", "getNeo", "getPublications", "getPreprints", "getVulnerabilities", "getAircraft"]) { const r = await svc[f](); assert.equal(r.available, false, f); }
+  assert.equal((await svc.getSpaceWeather()).available, false); assert.equal(svc.getSatellites("bogus"), null);
+});

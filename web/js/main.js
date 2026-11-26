@@ -6,6 +6,7 @@ import * as markets from "./modules/markets.js"; import * as live from "./module
 import * as civilization from "./modules/civilization.js"; import * as risefall from "./modules/risefall.js"; import * as risk from "./modules/risk.js"; import * as connections from "./modules/connections.js";
 import * as geopolitics from "./modules/geopolitics.js"; import * as reports from "./modules/reports.js"; import * as watchlists from "./modules/watchlists.js"; import * as settings from "./modules/settings.js";
 import { startAlerts } from "./services/alerts.js"; import { store as st, subscribe, markRead, clearNotes } from "./store.js";
+import * as space from "./modules/space.js"; import * as science from "./modules/science.js"; import * as cyber from "./modules/cyber.js"; import * as aviation from "./modules/aviation.js"; import * as sources from "./modules/sources.js";
 import * as history from "./modules/history.js"; import * as forecast from "./modules/forecast.js"; import * as analyst from "./modules/analyst.js";
 
 export const MODULES = [
@@ -14,7 +15,7 @@ export const MODULES = [
   { id: "geopolitics", n: "07", label: "Geopolitics", m: geopolitics }, { id: "planet", n: "08", label: "Planet", m: planet }, { id: "resources", n: "09", label: "Resources", m: resources },
   { id: "civilization", n: "10", label: "Civilization", m: civilization }, { id: "risefall", n: "11", label: "Rise & Fall", m: risefall }, { id: "risk", n: "12", label: "World Risk", m: risk, tag: "METHOD" },
   { id: "connections", n: "13", label: "Connections", m: connections }, { id: "history", n: "14", label: "History", m: history }, { id: "forecast", n: "15", label: "Forecast", m: forecast },
-  { id: "analyst", n: "16", label: "AI Analyst", m: analyst }, { id: "reports", n: "17", label: "Reports", m: reports }, { id: "watchlists", n: "18", label: "Watchlists", m: watchlists }, { id: "settings", n: "19", label: "Settings", m: settings },
+  { id: "analyst", n: "16", label: "AI Analyst", m: analyst }, { id: "reports", n: "17", label: "Reports", m: reports }, { id: "watchlists", n: "18", label: "Watchlists", m: watchlists }, { id: "space", n: "20", label: "Space", m: space }, { id: "science", n: "21", label: "Science", m: science }, { id: "cyber", n: "22", label: "Cybersecurity", m: cyber }, { id: "aviation", n: "23", label: "Aviation", m: aviation }, { id: "sources", n: "24", label: "API Center", m: sources }, { id: "settings", n: "25", label: "Settings", m: settings },
 ];
 let cleanup = null, token = 0;
 const parse = () => { const [, mod = "overview", ...rest] = location.hash.replace(/^#\/?/, "/").split("/"); return { mod: mod || "overview", arg: decodeURIComponent(rest.join("/") || "") }; };
@@ -22,7 +23,7 @@ const parse = () => { const [, mod = "overview", ...rest] = location.hash.replac
 function renderSide() {
   const { mod } = parse(), side = $("#side"); side.classList.toggle("collapsed", store.sidebarCollapsed);
   fill(side, h("div", { class: "brand" }, h("i"), h("span", null, "ORBIS")),
-    h("nav", { "aria-label": "Modules" }, MODULES.map((x) => h("a", { class: "nav" + (x.id === mod ? " on" : ""), href: "#/" + x.id, title: x.label, "aria-current": x.id === mod ? "page" : null }, h("span", { class: "n" }, x.n), h("span", { class: "lbl" }, x.label), x.tag ? h("span", { class: "st" }, x.tag) : null))),
+    h("nav", { "aria-label": "Modules" }, MODULES.map((x, i) => h("a", { class: "nav" + (x.id === mod ? " on" : ""), href: "#/" + x.id, title: x.label, "aria-current": x.id === mod ? "page" : null }, h("span", { class: "n" }, String(i + 1).padStart(2, "0")), h("span", { class: "lbl" }, x.label), x.tag ? h("span", { class: "st" }, x.tag) : null))),
     h("div", { class: "foot" }, h("button", { onclick: () => { setCollapsed(!store.sidebarCollapsed); renderSide(); }, "aria-label": "Collapse sidebar", style: { width: "100%" } }, store.sidebarCollapsed ? "»" : "« Collapse")));
 }
 let clockEl;
