@@ -2,3 +2,4 @@
 data/cache/
 node_modules/
 data/custom-providers.json
+data/orbis.db*

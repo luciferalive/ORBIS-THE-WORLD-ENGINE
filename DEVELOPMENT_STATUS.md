@@ -30,4 +30,4 @@ TWELVEDATA_KEY, FRED_API_KEY, NASA_API_KEY (optional), ANTHROPIC_API_KEY, ORBIS_
 - No live provider has been exercised from the build environment.
 
 ## Next tasks
-1. Add SQLite persistence for time series and events (node:sqlite) and a scheduler. 2. Globe layers for hazards/aircraft/launches. 3. Oceans/Atmosphere/Agriculture via NOAA, Open-Meteo, FAOSTAT. 4. World Risk with real indicators. 5. Provider field mapping in API Center.
+1. World Risk with real indicators. 2. Provider field mapping in API Center. 3. Globe layers still planned: conflict, shipping, energy, weather; satellites are not positioned (elements only). 4. Verify live provider behaviour on a networked machine (the build sandbox had no outbound access). Done in 0.5.0: SQLite recorder + scheduler, hazard/launch/aircraft/ISS globe layers.

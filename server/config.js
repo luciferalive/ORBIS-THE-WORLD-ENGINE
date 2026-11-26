@@ -12,6 +12,8 @@ export const config = {
   alphaVantageKey: process.env.ALPHAVANTAGE_KEY || "",
   nasaKey: process.env.NASA_API_KEY || "DEMO_KEY",
   adminToken: process.env.ORBIS_ADMIN_TOKEN || "",
+  dbPath: process.env.ORBIS_DB || new URL("../data/orbis.db", import.meta.url).pathname,
+  scheduler: process.env.ORBIS_SCHEDULER !== "0",
   anthropicKey: process.env.ANTHROPIC_API_KEY || "",
   analystModel: process.env.ANALYST_MODEL || "claude-sonnet-4-5",
   cacheDir: new URL("../data/cache/", import.meta.url).pathname,

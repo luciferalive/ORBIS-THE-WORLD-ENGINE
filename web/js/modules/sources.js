@@ -27,9 +27,19 @@ export async function render(el) {
     h("div", { class: "kpis" }, ...[["Providers", P.length], ["Integrated", P.filter((p) => p.integration === "integrated").length], ["Operational", count("OPERATIONAL")], ["Config required", count("CONFIGURATION REQUIRED")], ["Disconnected", count("DISCONNECTED")], ["Not integrated", count("NOT INTEGRATED")]].map(([l, v]) => h("div", { class: "kpi" }, h("div", { class: "l" }, l), h("div", { class: "v" }, v)))),
     R.offline ? h("div", { class: "banner" }, h("b", null, "OFFLINE"), "Server is in ORBIS_OFFLINE mode: providers are not contacted, so none can be OPERATIONAL.") : null,
     h("div", { class: "row", style: { marginBottom: "8px" } }, h("input", { type: "search", placeholder: "Filter providers…", "aria-label": "Filter", oninput: (e) => { f.q = e.target.value.toLowerCase(); draw(); } }), sel("All categories", "category", cats), sel("All statuses", "status", stats), sel("All integrations", "integration", ["integrated", "catalogued", "custom"])),
+    await jobsPanel(), h("div", { style: { height: "10px" } }),
     box("Provider registry", body), h("div", { style: { height: "10px" } }),
     box("Administration", h("div", null, R.adminEnabled ? null : h("div", { class: "banner" }, h("b", null, "CONFIGURATION REQUIRED"), "Set ORBIS_ADMIN_TOKEN in the server .env to enable provider tests and registration."), h("div", { class: "row", style: { marginBottom: "10px" } }, tok, h("span", { class: "small muted" }, "Held in memory only; sent as a header.")),
       h("h3", null, "Register a custom provider"), h("div", { class: "row", style: { margin: "6px 0" } }, reg.name, reg.url, reg.format, reg.category, reg.authHeader, reg.authEnv), h("p", { class: "small t2" }, "HTTPS only; private/internal addresses are blocked. Secrets are never entered here: put the key in the server environment and give its variable name. A registered provider starts disabled and is testable; response mapping and scheduling are not implemented yet (see ROADMAP)."),
       h("button", { class: "on", onclick: async () => { try { const r = await api.admin("POST", "/providers", token, { name: reg.name.value, url: reg.url.value, format: reg.format.value, category: reg.category.value, authHeader: reg.authHeader.value, authEnv: reg.authEnv.value }); toast("Registered " + r.name); render(el); } catch (e) { toast(e.message, "err"); } } }, "Register provider")), {}));
   draw();
+}
+
+async function jobsPanel() {
+  try {
+    const J = await api.jobs();
+    return box("Collector jobs (SQLite recorder)", h("div", null,
+      h("p", { class: "small t2" }, J.enabled ? "Scheduler running: jobs store real observations only." : J.offline ? "Scheduler off: ORBIS_OFFLINE mode." : "Scheduler off (ORBIS_SCHEDULER=0)."),
+      table([{ key: "id", label: "Job" }, { key: "everyMinutes", label: "Every (min)" }, { key: "lastOk", label: "Last success", render: (j) => (j.lastOk ? fmt.ago(j.lastOk) : "never") }, { key: "runs", label: "Runs" }, { key: "failures", label: "Failures" }, { key: "lastError", label: "Last error", render: (j) => j.lastError || "none" }], J.jobs)));
+  } catch (e) { return box("Collector jobs", h("span", { class: "small muted" }, "Unavailable: " + e.message)); }
 }

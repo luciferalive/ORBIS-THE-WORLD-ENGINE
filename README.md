@@ -17,7 +17,7 @@ Useful commands: `npm test` (43 tests), `ORBIS_OFFLINE=1 node server/index.js` (
 ## What is in it
 42 modules in 10 groups: Overview, Globe; Humanity, Civilization, Crime; Economy, Markets, Financial Power, Resources, Agriculture; World Live, Geopolitics, Security, World Risk; Planet, Atmosphere, Oceans, Marine life, Polar; Space, Astronomy; Aviation, Maritime, Railways, Roads, Logistics; Science, Technology, Discovery, Cybersecurity, Megaprojects; Rise & Fall, Connections, History, Forecast, Simulations, Universe Clock, AI Analyst, Reports; Watchlists, API Center, Settings. Press `Ctrl+K` or `/` to search anything.
 
-Features: interactive globe (drag, zoom, country selection, day/night), live-or-labelled markets, event feed, anomaly detection, alert rules with in-app notifications, CSV and print-to-PDF reports, a source registry with ~50 providers, and per-module "Data sources" panels.
+Features: interactive globe (drag, zoom, country selection, day/night, clickable layers for hazards, launch pads, aircraft and the live ISS), live-or-labelled markets, event feed, anomaly detection, alert rules with in-app notifications, CSV and print-to-PDF reports, a source registry with ~50 providers, and per-module "Data sources" panels. A background collector records real observations (prices, Kp, CO2, events) to a local SQLite file; demo or sample values are never stored. See `DATABASE_SCHEMA.md`.
 
 ## How honesty works
 Every value carries a status badge, and clicking it shows provider, source, frequency and timestamp.

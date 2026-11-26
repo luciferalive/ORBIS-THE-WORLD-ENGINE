@@ -55,12 +55,19 @@ export class Globe {
       if (pts.has(e.pointerId)) { pts.set(e.pointerId, e);
         if (pts.size === 2) { const [a, b] = [...pts.values()], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); if (pinch) this.zoomBy(d / pinch); pinch = d; return; }
         const dx = e.clientX - this.drag.x, dy = e.clientY - this.drag.y; moved += Math.abs(dx) + Math.abs(dy); const k = 0.25 / this.zoom; this.clon -= dx * k; this.clat = Math.max(-85, Math.min(85, this.clat + dy * k)); this.vlon = -dx * k * 0.5; this.drag = { x: e.clientX, y: e.clientY }; this.target = null; this.draw();
-      } else { const iso = this.pick(e.clientX - rect.left, e.clientY - rect.top); if (iso !== this.hover) { this.hover = iso; c.style.cursor = iso ? "pointer" : "grab"; this.draw(); } }
+      } else { const mx = e.clientX - rect.left, my = e.clientY - rect.top, mk = this.pickMarker(mx, my), iso = mk ? null : this.pick(mx, my); c.style.cursor = mk || iso ? "pointer" : "grab"; if (iso !== this.hover) { this.hover = iso; this.draw(); } }
     });
-    const up = (e) => { const was = pts.has(e.pointerId); pts.delete(e.pointerId); if (!was) return; if (moved < 5 && pts.size === 0) { const rect = c.getBoundingClientRect(); const iso = this.pick(e.clientX - rect.left, e.clientY - rect.top); this.selected = iso; this.opts.onPick && this.opts.onPick(iso); this.draw(); } };
+    const up = (e) => { const was = pts.has(e.pointerId); pts.delete(e.pointerId); if (!was) return; if (moved < 5 && pts.size === 0) { const rect = c.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top; const mk = this.pickMarker(mx, my); if (mk && this.opts.onMarker) { this.opts.onMarker(mk.m, mk.kind); return; } const iso = this.pick(mx, my); this.selected = iso; this.opts.onPick && this.opts.onPick(iso); this.draw(); } };
     c.addEventListener("pointerup", up); c.addEventListener("pointercancel", up);
     c.addEventListener("wheel", (e) => { e.preventDefault(); this.zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12); }, { passive: false });
     c.addEventListener("keydown", (e) => { const s = 6 / this.zoom; if (e.key === "ArrowLeft") this.clon -= s; else if (e.key === "ArrowRight") this.clon += s; else if (e.key === "ArrowUp") this.clat = Math.min(85, this.clat + s); else if (e.key === "ArrowDown") this.clat = Math.max(-85, this.clat - s); else if (e.key === "+" || e.key === "=") this.zoomBy(1.2); else if (e.key === "-") this.zoomBy(1 / 1.2); else return; this.auto = false; e.preventDefault(); this.draw(); });
+  }
+  /** Nearest visible marker (of enabled layers) within 9px of the pointer, or null. */
+  pickMarker(mx, my) {
+    let best = null, bd = 81;
+    for (const [kind, list] of Object.entries(this.markers)) { if (!this.layers[kind] || !Array.isArray(list)) continue;
+      for (const m of list) { if (!m.ref) continue; const s = this.toScreen(m.lon, m.lat); if (s.z <= 0.05) continue; const d = (s.sx - mx) ** 2 + (s.sy - my) ** 2; if (d < bd) { bd = d; best = { kind, m }; } } }
+    return best;
   }
   pick(mx, my) {
     const px = (mx - this.w / 2) / this.R, py = -(my - this.h / 2) / this.R, ll = invert(px, py, this.clon, this.clat); if (!ll) return null;
@@ -105,6 +112,10 @@ export class Globe {
     if (this.layers.cities && this.markers.cities) draw(this.markers.cities, () => "#F0B65C", (c) => 1.5 + Math.log10(c.population / 1e6 + 1));
     if (this.layers.events && this.markers.events) draw(this.markers.events, (e) => (e.sample ? "rgba(240,182,92,.85)" : e.severity >= 4 ? "#FF5F65" : "#F0B65C"), (e) => 2.5 + (e.severity || 1) * 0.7);
     if (this.layers.quakes && this.markers.quakes) draw(this.markers.quakes, () => "#FF5F65", (q) => 1.5 + Math.max(0, q.mag - 3) * 1.3);
+    if (this.layers.hazards && this.markers.hazards) draw(this.markers.hazards, () => "#A68BFA", () => 3);
+    if (this.layers.aircraft && this.markers.aircraft) draw(this.markers.aircraft, () => "rgba(154,209,255,.8)", () => 1.3);
+    if (this.layers.launches && this.markers.launches) draw(this.markers.launches, () => "#55D6A7", () => 3.5);
+    if (this.layers.iss && this.markers.iss) for (const m of this.markers.iss) { const s = this.toScreen(m.lon, m.lat); if (s.z <= 0) continue; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(s.sx, s.sy, 6, 0, 7); ctx.stroke(); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(s.sx, s.sy, 2.5, 0, 7); ctx.fill(); }
     ctx.restore();
     // labels for selected/hover
     for (const iso of [this.selected, this.hover]) { const c = iso && this.opts.countries.find((x) => x.iso2 === iso); if (!c) continue; const s = this.toScreen(c.lon, c.lat); if (s.z <= 0.05) continue; ctx.font = "11px Inter, sans-serif"; ctx.fillStyle = "#E8EDF3"; ctx.strokeStyle = "#07090D"; ctx.lineWidth = 3; ctx.strokeText(c.name, s.sx + 7, s.sy - 6); ctx.fillText(c.name, s.sx + 7, s.sy - 6); }

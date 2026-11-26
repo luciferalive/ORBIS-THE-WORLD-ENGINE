@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 process.env.ORBIS_OFFLINE = "1";
+process.env.ORBIS_DB = ":memory:";
 const { route } = await import("../server/api.js");
 const { parseMarkets } = await import("../server/providers/coingecko.js");
 const { parseTimeseries } = await import("../server/providers/frankfurter.js");
@@ -248,4 +249,21 @@ test("API: new endpoints respond honestly offline", async () => {
   assert.equal((await route("GET", U("/api/oceans"))).available, false); assert.equal((await route("GET", U("/api/indicator-table?keys=railKm,roadKm"))).available, false); await assert.rejects(() => route("GET", U("/api/indicator-table?keys=bogus")));
   assert.ok((await route("GET", U("/api/megaprojects"))).projects.length > 10); const s = await route("POST", U("/api/simulate"), { model: "fx_depreciation", params: { depreciationPct: 20 } }); assert.equal(s.hypothetical, true); await assert.rejects(() => route("POST", U("/api/simulate"), { model: "bogus" }));
   assert.equal((await route("GET", U("/api/filers/berkshire"))).available, false); await assert.rejects(() => route("GET", U("/api/filers/bogus")));
+});
+
+// ---- persistence + scheduler
+const dbm = await import("../server/core/db.js"); const sched = await import("../server/core/scheduler.js");
+test("db stores only real observations and dedupes by (id,t)", () => {
+  const n = dbm.addPoints([{ id: "price:btc", t: 1000, v: 50000, status: "LIVE", provider: "CoinGecko" }, { id: "price:btc", t: 1000, v: 51000, status: "LIVE", provider: "CoinGecko" }, { id: "price:x", t: 1000, v: 1, status: "DEMO", provider: "demo" }, { id: "price:y", t: 1000, v: NaN, status: "LIVE", provider: "p" }]);
+  assert.equal(n, 1); const rows = dbm.querySeries("price:btc"); assert.equal(rows.length, 1); assert.equal(rows[0].v, 50000); assert.equal(dbm.querySeries("price:x").length, 0);
+  const e = dbm.addEvents([{ id: "e1", time: "2026-11-26T00:00:00Z", title: "Real", kind: "reported", meta: { status: "RECENT", provider: "BBC" } }, { id: "e2", time: "2026-11-26T00:00:00Z", title: "[SAMPLE]", kind: "sample", meta: { status: "DEMO" } }, { id: "e3", time: "2026-11-26T00:00:00Z", title: "demo", kind: "reported", meta: { status: "DEMO" } }]);
+  assert.equal(e, 1); assert.equal(dbm.queryEvents({}).length, 1); assert.equal(dbm.stats().events, 1);
+});
+test("scheduler: offline never starts; running a job offline records nothing fake", async () => {
+  assert.equal(sched.start(), false); const before = dbm.stats().seriesPoints; const s = await sched.runJob(sched.JOBS.find((j) => j.id === "markets")); assert.equal(dbm.stats().seriesPoints, before); assert.equal(s.lastRows, 0);
+  const f = await sched.runJob(sched.JOBS.find((j) => j.id === "spaceweather")); assert.ok(f.lastError); assert.ok(sched.status().recent.some((r) => r.job === "spaceweather" && r.ok === 0));
+});
+test("API: stored endpoints and job status", async () => {
+  const U = (p) => new URL("http://x" + p); const st = await route("GET", U("/api/stored/stats")); assert.ok(st.series.some((s) => s.id === "price:btc")); const se = await route("GET", U("/api/stored/series?id=price:btc")); assert.equal(se.count, 1); assert.equal((await route("GET", U("/api/stored/series?id=none"))).meta.status, "UNAVAILABLE");
+  assert.equal((await route("GET", U("/api/jobs"))).enabled, false);
 });

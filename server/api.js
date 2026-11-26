@@ -6,6 +6,8 @@ import { config } from "./config.js";
 import * as svc from "./services.js";
 import * as ai from "./ai.js";
 import * as providers from "./core/providers.js";
+import * as db from "./core/db.js";
+import * as scheduler from "./core/scheduler.js";
 import { RANGES } from "./data/demo.js";
 
 const WEB = fileURLToPath(new URL("../web/", import.meta.url));
@@ -45,6 +47,10 @@ export async function route(method, url, body, headers = {}) {
     if (p === "/api/preprints") return svc.getPreprints(q.get("cat") || "astro-ph").catch((e) => { throw new HttpError(400, e.message); });
     if (p === "/api/vulnerabilities") return svc.getVulnerabilities();
     if (p === "/api/aircraft") return svc.getAircraft();
+    if (p === "/api/jobs") return scheduler.status();
+    if (p === "/api/stored/stats") return { ...db.stats(), series: db.listSeries(), note: "Only real observations (LIVE/RECENT/PERIODIC) are stored. DEMO and SAMPLE values are never recorded." };
+    if (p === "/api/stored/series") { const id = q.get("id"); if (!id || id.length > 80) throw new HttpError(400, "id required"); const pts = db.querySeries(id, Number(q.get("from")) || 0, Number(q.get("to")) || undefined); return { id, points: pts, count: pts.length, meta: { status: pts.length ? "PERIODIC" : "UNAVAILABLE", provider: "ORBIS recorder", source: "ORBIS SQLite store (collected from providers)", frequency: "per collector interval", dataType: "recorded series", note: pts.length ? "Recorded by ORBIS since collection began; gaps mean the server was off or the provider failed." : "No recorded points for this series yet." } }; }
+    if (p === "/api/stored/events") return { events: db.queryEvents({ from: q.get("from") || undefined, category: q.get("category") || undefined, limit: Number(q.get("limit")) || 200 }) };
     if (p === "/api/providers") return { providers: providers.listProviders(), adminEnabled: !!config.adminToken, offline: config.offline, generatedAt: new Date().toISOString() };
     if (p === "/api/anomalies") return svc.getAnomalies();
     if (p === "/api/hazards") return svc.getHazards();
