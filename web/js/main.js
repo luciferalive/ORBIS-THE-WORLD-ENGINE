@@ -1,6 +1,7 @@
 import { h, fill, $, fmt, badge, closeDrawer, toast, state, openDrawer } from "./components/ui.js";
 import { api } from "./services/api.js";
 import { store, setCollapsed } from "./store.js";
+import { boot } from "./fx.js";
 import * as overview from "./modules/overview.js"; import * as orbis from "./modules/orbis.js"; import * as humanity from "./modules/humanity.js"; import * as economy from "./modules/economy.js";
 import * as markets from "./modules/markets.js"; import * as live from "./modules/live.js"; import * as planet from "./modules/planet.js"; import * as resources from "./modules/resources.js";
 import * as civilization from "./modules/civilization.js"; import * as risefall from "./modules/risefall.js"; import * as risk from "./modules/risk.js"; import * as connections from "./modules/connections.js";
@@ -96,4 +97,5 @@ function openNotes() {
   openDrawer("Notifications", h("div", null, h("div", { class: "row", style: { marginBottom: "8px" } }, h("a", { href: "#/settings" }, "Manage alert rules"), h("button", { onclick: () => { clearNotes(); closeDrawer(); } }, "Clear history")),
     st.notes.length ? h("div", { class: "feed" }, st.notes.map((n) => h("div", { class: "item" }, h("div", { class: "meta" }, h("span", { class: "pill " + (n.dataStatus || "DEMO") }, n.dataStatus || "?"), h("span", null, fmt.ago(n.firedAt || n.at))), h("div", null, n.title), h("div", { class: "small t2" }, n.detail)))) : state("No notifications", "Create alert rules in Settings. They fire here when conditions are met.")));
 }
+boot();
 startAlerts();

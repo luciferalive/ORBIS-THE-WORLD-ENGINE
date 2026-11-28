@@ -1,4 +1,6 @@
 # Changelog
+## 0.6.0
+- Terminal/hacker UI theme (hacker.css), boot sequence, glowing green globe; README rewritten with screenshots (captured in offline demo mode).
 ## 0.5.0
 - SQLite recorder (`node:sqlite`) and scheduler: markets, events, hazards, space weather, climate, aircraft counts. Real statuses only; DEMO/SAMPLE never stored. Off in offline mode or with ORBIS_SCHEDULER=0.
 - API: /api/jobs, /api/stored/stats, /api/stored/series, /api/stored/events.

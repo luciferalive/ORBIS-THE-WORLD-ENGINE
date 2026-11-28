@@ -86,17 +86,17 @@ export class Globe {
   draw() {
     const { ctx, w, h, dpr } = this; if (!w) return; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
     const cx = w / 2, cy = h / 2, R = this.R;
-    const g = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.3, R * 0.1, cx, cy, R); g.addColorStop(0, "#12233a"); g.addColorStop(1, "#08111d");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill(); ctx.strokeStyle = "#2a3a50"; ctx.lineWidth = 1; ctx.stroke();
+    const g = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.3, R * 0.1, cx, cy, R); g.addColorStop(0, "#062a30"); g.addColorStop(1, "#03100f");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill(); ctx.strokeStyle = "#2fe6a0"; ctx.lineWidth = 1; ctx.stroke();
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
     // graticule
-    ctx.strokeStyle = "#1b2a3d"; ctx.lineWidth = 0.6;
+    ctx.strokeStyle = "rgba(57,255,156,.16)"; ctx.lineWidth = 0.6;
     for (let lo = -180; lo < 180; lo += 30) this.ring(ctx, Array.from({ length: 73 }, (_, i) => [lo, -90 + i * 2.5]), false);
     for (let la = -60; la <= 60; la += 30) this.ring(ctx, Array.from({ length: 145 }, (_, i) => [-180 + i * 2.5, la]), false);
     // land
     ctx.lineWidth = 0.8;
-    if (this.polys.length) { for (const p of this.polys) { const sel = p.iso && p.iso === this.selected, hov = p.iso && p.iso === this.hover; ctx.fillStyle = sel ? "#1d4f87" : hov ? "#274566" : "#1a2c43"; ctx.strokeStyle = sel ? "#65A9FF" : "#3b5675"; this.ring(ctx, p.ring, true); } }
-    else { ctx.fillStyle = "#16283d"; ctx.strokeStyle = "#35506f"; for (const ring of Object.values(CONTINENTS)) this.ring(ctx, [...ring, ring[0]], true); }
+    if (this.polys.length) { for (const p of this.polys) { const sel = p.iso && p.iso === this.selected, hov = p.iso && p.iso === this.hover; ctx.fillStyle = sel ? "#0f6b52" : hov ? "#0d4d40" : "#0a3029"; ctx.strokeStyle = sel ? "#39ff9c" : "#1f8f6a"; this.ring(ctx, p.ring, true); } }
+    else { ctx.fillStyle = "#0c3a33"; ctx.strokeStyle = "#39ff9c"; for (const ring of Object.values(CONTINENTS)) this.ring(ctx, [...ring, ring[0]], true); }
     // night side: shade 4-degree cells whose centre is below the sun's horizon
     if (this.layers.daynight) {
       const sun = sunPosition(), sv = project(sun.lon, sun.lat, 0, 0); ctx.fillStyle = "rgba(2,5,10,0.5)";
