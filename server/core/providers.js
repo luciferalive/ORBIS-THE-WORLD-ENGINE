@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 // Provider management: merges the static catalogue, runtime health, and admin-registered custom providers.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { lookup } from "node:dns/promises";
@@ -5,9 +6,9 @@ import net from "node:net";
 import { CATALOGUE, byId } from "./catalogue.js";
 import * as registry from "../registry.js";
 import { config } from "../config.js";
-const FILE = new URL("../../data/custom-providers.json", import.meta.url).pathname;
+const FILE = fileURLToPath(new URL("../../data/custom-providers.json", import.meta.url));
 const readCustom = () => { try { return JSON.parse(readFileSync(FILE, "utf8")); } catch { return []; } };
-const writeCustom = (l) => { mkdirSync(new URL("../../data/", import.meta.url).pathname, { recursive: true }); writeFileSync(FILE, JSON.stringify(l, null, 2)); };
+const writeCustom = (l) => { mkdirSync(fileURLToPath(new URL("../../data/", import.meta.url)), { recursive: true }); writeFileSync(FILE, JSON.stringify(l, null, 2)); };
 
 export function isPrivateIp(ip) {
   if (net.isIPv4(ip)) { const [a, b] = ip.split(".").map(Number); return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224; }
